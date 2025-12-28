@@ -1,0 +1,172 @@
+{
+	"name": "lvgl-live-preview",
+	"displayName": "LVGL Live Preview",
+	"description": "Live preview for LVGL C code with automatic hot-reload using Emscripten",
+	"version": "0.0.1",
+	"publisher": "themastercoder007",
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"categories": [
+		"Programming Languages",
+		"Visualization",
+		"Other"
+	],
+	"keywords": [
+		"lvgl",
+		"embedded",
+		"gui",
+		"preview",
+		"emscripten",
+		"wasm"
+	],
+	"activationEvents": [
+		"onCommand:lvgl-preview.start",
+		"onLanguage:c"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "lvgl-preview.start",
+				"title": "LVGL: Start Live Preview",
+				"category": "LVGL Preview"
+			},
+			{
+				"command": "lvgl-preview.stop",
+				"title": "LVGL: Stop Preview",
+				"category": "LVGL Preview"
+			},
+			{
+				"command": "lvgl-preview.rebuild",
+				"title": "LVGL: Force Rebuild",
+				"category": "LVGL Preview"
+			},
+			{
+				"command": "lvgl-preview.clearCache",
+				"title": "LVGL: Clear Cache",
+				"category": "LVGL Preview"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "lvgl-preview.start",
+				"key": "ctrl+shift+l",
+				"mac": "cmd+shift+l",
+				"when": "resourceLangId == c"
+			}
+		],
+		"menus": {
+			"editor/context": [
+				{
+					"command": "lvgl-preview.start",
+					"when": "resourceLangId == c",
+					"group": "navigation"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "lvgl-preview.start",
+					"when": "resourceLangId == c",
+					"group": "navigation"
+				}
+			]
+		},
+		"configuration": {
+			"title": "LVGL Live Preview",
+			"properties": {
+				"lvglPreview.emccOptimization": {
+					"type": "string",
+					"enum": [
+						"-O0",
+						"-O1",
+						"-O2",
+						"-O3",
+						"-Os",
+						"-Oz"
+					],
+					"default": "-O1",
+					"description": "Emscripten compiler optimization level"
+				},
+				"lvglPreview.lvglVersion": {
+					"type": "string",
+					"enum": [
+						"8.0.0",
+						"8.0.1",
+						"8.0.2",
+						"8.1.0",
+						"8.2.0",
+						"8.3.0",
+						"8.3.1",
+						"8.3.2",
+						"8.3.3",
+						"8.3.4",
+						"8.3.5",
+						"8.3.6",
+						"8.3.7",
+						"8.3.8",
+						"8.3.9",
+						"8.3.10",
+						"8.3.11",
+						"8.4.0",
+						"9.0.0",
+						"9.1.0",
+						"9.2.0",
+						"9.2.1",
+						"9.2.2",
+						"9.3.0",
+						"9.4.0"
+					],
+					"default": "9.4.0",
+					"description": "LVGL library version to use"
+				},
+				"lvglPreview.displayWidth": {
+					"type": "number",
+					"default": 480,
+					"description": "LVGL display width in pixels"
+				},
+				"lvglPreview.displayHeight": {
+					"type": "number",
+					"default": 320,
+					"description": "LVGL display height in pixels"
+				},
+				"lvglPreview.autoReload": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically reload preview on file changes"
+				},
+				"lvglPreview.debounceDelay": {
+					"type": "number",
+					"default": 100,
+					"description": "Delay in milliseconds before recompiling after file changes"
+				}
+			}
+		}
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./ && npm run copy-assets",
+		"copy-assets": "node -e \"require('fs').copyFileSync('src/preview/preview.html', 'out/preview/preview.html')\"",
+		"watch": "tsc -watch -p ./",
+		"pretest": "npm run compile && npm run lint",
+		"lint": "eslint src --ext ts",
+		"test": "node ./out/test/runTest.js",
+		"package": "vsce package",
+		"publish": "vsce publish"
+	},
+	"devDependencies": {
+		"@types/adm-zip": "^0.5.7",
+		"@types/node": "^20.11.0",
+		"@types/vscode": "^1.85.0",
+		"@typescript-eslint/eslint-plugin": "^6.19.0",
+		"@typescript-eslint/parser": "^6.19.0",
+		"@vscode/test-electron": "^2.3.8",
+		"@vscode/vsce": "^2.22.0",
+		"eslint": "^8.56.0",
+		"typescript": "^5.3.3",
+		"prettier": "^3.7.4"
+	},
+	"dependencies": {
+		"adm-zip": "^0.5.10"
+	}
+}

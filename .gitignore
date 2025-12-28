@@ -1,0 +1,12 @@
+# Jetbrains
+.idea/
+
+# VS Code
+.vscode/
+.vscode-test/
+*.vsix
+
+# libraries and build folders
+node_modules
+out
+.DS_Store

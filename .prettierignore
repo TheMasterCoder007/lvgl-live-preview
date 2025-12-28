@@ -1,0 +1,15 @@
+# Build output
+out/
+dist/
+*.vsix
+
+# Dependencies
+node_modules/
+
+# Cache
+.vscode-test/
+*.log
+
+# Generated files
+*.js.map
+*.d.ts
