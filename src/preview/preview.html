@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none';
+		style-src {{cspSource}} 'unsafe-inline';
+		script-src 'nonce-{{nonce}}' 'wasm-unsafe-eval';
+		img-src {{cspSource}} data:;
+		connect-src {{cspSource}};">
+    <title>LVGL Preview</title>
+    <style>
+        :root {
+            --vscode-editor-background: initial;
+            --vscode-editor-foreground: initial;
+            --vscode-font-family: initial;
+            --vscode-button-background: initial;
+            --vscode-button-foreground: initial;
+            --vscode-button-hoverBackground: initial;
+            --vscode-editor-inactiveSelectionBackground: initial;
+            --vscode-panel-border: initial;
+            --vscode-progressBar-background: initial;
+            --vscode-inputValidation-errorBackground: initial;
+            --vscode-inputValidation-errorForeground: initial;
+            --vscode-inputValidation-errorBorder: initial;
+            --vscode-editor-font-family: initial;
+        }
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: var(--vscode-editor-background);
+            color: var(--vscode-editor-foreground);
+            font-family: var(--vscode-font-family), sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        #toolbar {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .toolbar-button {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .toolbar-button:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+
+        #status {
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            background-color: var(--vscode-editor-inactiveSelectionBackground);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        #canvas-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #000;
+            border: 2px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #canvas {
+            display: block;
+            /* noinspection CssOverwrittenProperties */
+            image-rendering: pixelated;
+            /* noinspection CssOverwrittenProperties */
+            image-rendering: crisp-edges;
+        }
+
+        #loading {
+            text-align: center;
+        }
+
+        .spinner {
+            border: 4px solid var(--vscode-editor-inactiveSelectionBackground);
+            border-top: 4px solid var(--vscode-progressBar-background);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #error {
+            display: none;
+            background-color: var(--vscode-inputValidation-errorBackground);
+            color: var(--vscode-inputValidation-errorForeground);
+            border: 1px solid var(--vscode-inputValidation-errorBorder);
+            padding: 20px;
+            border-radius: 4px;
+            max-width: 800px;
+            white-space: pre-wrap;
+            font-family: var(--vscode-editor-font-family), monospace;
+            font-size: 12px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+<div id="toolbar">
+    <button class="toolbar-button" onclick="reload()">⟳ Reload</button>
+</div>
+
+<div id="status">Waiting for compilation...</div>
+
+<div id="loading">
+    <div class="spinner"></div>
+    <p>Loading LVGL Preview...</p>
+</div>
+
+<div id="canvas-container" class="hidden">
+    <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+</div>
+
+<div id="error"></div>
+
+<script nonce="{{nonce}}">
+    // noinspection JSUnresolvedReference
+    const vscode = acquireVsCodeApi();
+
+    vscode.postMessage({ type: 'ready' });
+
+    function setStatus(message) {
+        document.getElementById('status').textContent = message;
+    }
+
+    function showLoading() {
+        document.getElementById('loading').classList.remove('hidden');
+        document.getElementById('canvas-container').classList.add('hidden');
+        document.getElementById('error').style.display = 'none';
+    }
+
+    function showCanvas() {
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('canvas-container').classList.remove('hidden');
+        document.getElementById('error').style.display = 'none';
+    }
+
+    function showError(message) {
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('canvas-container').classList.add('hidden');
+        const errorEl = document.getElementById('error');
+        errorEl.textContent = message;
+        errorEl.style.display = 'block';
+        setStatus('Compilation error');
+    }
+
+    function reload() {
+        vscode.postMessage({ type: 'reload' });
+        showLoading();
+        setStatus('Reloading...');
+    }
+
+    async function loadWasm(wasmBase64, jsContent) {
+        try {
+            showLoading();
+            setStatus('Loading WASM module...');
+
+            console.log('[WASM] Decoding base64...');
+            const wasmBinary = Uint8Array.from(atob(wasmBase64), c => c.charCodeAt(0));
+            console.log('[WASM] Binary loaded:', wasmBinary.length, 'bytes');
+
+            // Configure Module before executing Emscripten script
+            window.Module = {
+                canvas: document.getElementById('canvas'),
+                wasmBinary: wasmBinary,
+                onRuntimeInitialized: function() {
+                    console.log('✓ LVGL runtime initialized');
+                    setStatus('Running');
+                    showCanvas();
+                },
+                print: function(text) {
+                    console.log('[LVGL]', text);
+                },
+                printErr: function(text) {
+                    console.error('[LVGL Error]', text);
+                },
+                setStatus: function(text) {
+                    if (text) {
+                        setStatus(text);
+                    }
+                }
+            };
+
+            console.log('[WASM] Creating script element...');
+
+            // Create a script element and set its content
+            // This works with CSP because we can set the nonce attribute
+            const script = document.createElement('script');
+            script.setAttribute('nonce', '${nonce}');
+            script.textContent = jsContent;
+
+            // Append to body to execute
+            document.body.appendChild(script);
+
+            console.log('[WASM] Script element added and executed');
+
+        } catch (error) {
+            console.error('✗ Failed to load WASM:', error);
+            showError('Failed to load WASM module: ' + error.message);
+            vscode.postMessage({
+                type: 'error',
+                message: 'Failed to load WASM: ' + error.message
+            });
+        }
+    }
+
+    window.addEventListener('message', event => {
+        const message = event.data;
+
+        switch (message.type) {
+            case 'compiling':
+                showLoading();
+                setStatus('Compiling...');
+                break;
+
+            case 'loadWasm':
+                loadWasm(message.wasmBase64, message.jsContent);
+                break;
+
+            case 'showError':
+                showError(message.message);
+                break;
+
+            case 'updateSettings':
+                console.log('Settings updated:', message.settings);
+                break;
+        }
+    });
+</script>
+</body>
+</html>
