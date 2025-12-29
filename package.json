@@ -4,6 +4,10 @@
 	"description": "Live preview for LVGL C code with automatic hot-reload using Emscripten",
 	"version": "0.0.1",
 	"publisher": "themastercoder007",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/themastercoder007/lvgl-live-preview"
+	},
 	"engines": {
 		"vscode": "^1.85.0"
 	},
