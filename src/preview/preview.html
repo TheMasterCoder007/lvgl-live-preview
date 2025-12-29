@@ -214,9 +214,8 @@
             console.log('[WASM] Creating script element...');
 
             // Create a script element and set its content
-            // This works with CSP because we can set the nonce attribute
             const script = document.createElement('script');
-            script.setAttribute('nonce', '${nonce}');
+            script.setAttribute('nonce', '{{nonce}}');
             script.textContent = jsContent;
 
             // Append to body to execute
