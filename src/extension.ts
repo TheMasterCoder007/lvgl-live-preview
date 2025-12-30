@@ -160,7 +160,7 @@ async function showWelcomeMessage() {
 			content: `
 #include "lvgl.h"
 
-void lvgl_user_init(void) {
+void lvgl_live_preview_init(void) {
     // Create a simple button
     lv_obj_t *btn = lv_btn_create(lv_scr_act());
     lv_obj_set_size(btn, 120, 50);

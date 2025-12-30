@@ -42,7 +42,7 @@ Then press F5 to run the extension in development mode.
 ## Quick Start
 
 1. Create a new C file with LVGL code
-2. Define a `lvgl_user_init()` function (required entry point)
+2. Define a `lvgl_live_preview_init()` function (required entry point)
 3. Press `Ctrl+Shift+L` or run "LVGL: Start Live Preview" from the command palette
 4. Wait for Emscripten to download (first time only, ~200MB)
 5. Your LVGL UI will appear in a webview panel!
@@ -52,7 +52,7 @@ Then press F5 to run the extension in development mode.
 ```c
 #include "lvgl.h"
 
-void lvgl_user_init(void) {
+void lvgl_live_preview_init(void) {
     // Create a simple button
     lv_obj_t *btn = lv_btn_create(lv_scr_act());
     lv_obj_set_size(btn, 120, 50);
@@ -66,7 +66,7 @@ void lvgl_user_init(void) {
 
 ## Requirements
 
-- **Required Entry Point**: Your C file must define a `void lvgl_user_init(void)` function. This is where you initialize your LVGL UI.
+- **Required Entry Point**: Your C file must define a `void lvgl_live_preview_init(void)` function. This is where you initialize your LVGL UI.
 - **LVGL API**: Use standard LVGL API calls. The extension supports LVGL v8.x and v9.x.
 - **Single File**: Currently, only single-file previews are supported (multi-file support is planned for the future).
 
@@ -122,7 +122,7 @@ This approach solves the common problem of Emscripten modules failing to reload 
 - Manually download from the output channel for details
 
 ### Compilation Errors
-- Ensure you have defined `lvgl_user_init()` function
+- Ensure you have defined `lvgl_live_preview_init()` function
 - Check the Problems panel (Ctrl+Shift+M) for detailed errors
 - View the LVGL Preview output channel for compiler messages
 
