@@ -14,7 +14,7 @@ export class MainTemplate {
 #include <stdio.h>
 
 /* User function declaration */
-extern void lvgl_user_init(void);
+extern void lvgl_live_preview_init(void);
 
 static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
@@ -179,7 +179,7 @@ int main(int argc, char *argv[]) {
 
     /* Call user initialization */
     printf("Calling user init...\\n");
-    lvgl_user_init();
+    lvgl_live_preview_init();
     printf("User init complete\\n");
 
     /* Start main loop */
