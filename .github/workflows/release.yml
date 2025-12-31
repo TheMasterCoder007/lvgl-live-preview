@@ -27,6 +27,11 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Get short commit hash
+        id: commit
+        run: |
+          echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
       - name: Update package.json version
         run: |
           npm version ${{ steps.version.outputs.version }} --no-git-tag-version
@@ -34,6 +39,19 @@ jobs:
       # Only run pretest for now. Add tests later once they have been implemented
       - name: Run tests
         run: npm run pretest
+
+      - name: Package extension
+        run: npm run package
+
+      - name: Rename .vsix file
+        run: |
+          mv *.vsix lvgl-live-preview-${{ steps.version.outputs.version }}-${{ steps.commit.outputs.short_sha }}.vsix
+
+      - name: Upload .vsix artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lvgl-live-preview-${{ steps.version.outputs.version }}-${{ steps.commit.outputs.short_sha }}
+          path: lvgl-live-preview-${{ steps.version.outputs.version }}-${{ steps.commit.outputs.short_sha }}.vsix
 
       - name: Publish to VS Code Marketplace
         env:

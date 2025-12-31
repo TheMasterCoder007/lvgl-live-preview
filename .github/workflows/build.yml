@@ -22,6 +22,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Get short commit hash
+        id: commit
+        run: |
+          echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
       # Only run pretest for now. Add tests later once they have been implemented
       - name: Run tests
         run: npm run pretest
@@ -29,9 +34,13 @@ jobs:
       - name: Package extension
         run: npm run package
 
+      - name: Rename .vsix file
+        run: |
+          mv *.vsix lvgl-live-preview-${{ steps.commit.outputs.short_sha }}.vsix
+
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vsix-package
-          path: '*.vsix'
+          name: lvgl-live-preview-${{ steps.commit.outputs.short_sha }}
+          path: lvgl-live-preview-${{ steps.commit.outputs.short_sha }}.vsix
           retention-days: 30
