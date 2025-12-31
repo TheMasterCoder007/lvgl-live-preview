@@ -62,7 +62,9 @@ export class PreviewManager implements vscode.Disposable {
 			// Create a webview if it does not exist
 			if (!this.webviewManager) {
 				this.outputChannel.appendLine('[PreviewManager] Creating webview manager...');
-				this.webviewManager = new WebviewManager(this.context, this.outputChannel);
+				this.webviewManager = new WebviewManager(this.context, this.outputChannel, async () => {
+					await this.rebuild();
+				});
 			}
 
 			// Show webview
