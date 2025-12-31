@@ -144,6 +144,59 @@ export async function activate(context: vscode.ExtensionContext) {
 			vscode.window.showInformationMessage('LVGL Preview cache cleared');
 		})
 	);
+
+	// Listen for configuration changes
+	context.subscriptions.push(
+		vscode.workspace.onDidChangeConfiguration(async (event) => {
+			// Only handle changes to lvglPreview configuration
+			if (!event.affectsConfiguration('lvglPreview')) {
+				return;
+			}
+
+			outputChannel.appendLine('Configuration changed, checking if reload is needed...');
+
+			// Check if preview is currently running
+			if (!previewManager || !compilationManager || !previewManager.isRunning()) {
+				outputChannel.appendLine('No active preview, skipping reload');
+				return;
+			}
+
+			// Check which settings changed
+			const needsRebuild =
+				event.affectsConfiguration('lvglPreview.displayWidth') ||
+				event.affectsConfiguration('lvglPreview.displayHeight') ||
+				event.affectsConfiguration('lvglPreview.emccOptimization') ||
+				event.affectsConfiguration('lvglPreview.lvglVersion');
+
+			const needsWatcherRestart =
+				event.affectsConfiguration('lvglPreview.autoReload') ||
+				event.affectsConfiguration('lvglPreview.debounceDelay');
+
+			if (needsRebuild) {
+				outputChannel.appendLine('Settings affecting compilation changed, rebuilding preview...');
+				void vscode.window.showInformationMessage(
+					'LVGL Preview settings changed. Clearing cache and rebuilding...'
+				);
+
+				statusBarManager?.setStatus('compiling');
+				await compilationManager.clearCache();
+				await previewManager.rebuild();
+				statusBarManager?.setStatus('running');
+			} else if (needsWatcherRestart) {
+				outputChannel.appendLine('File watcher settings changed, restarting preview...');
+				void vscode.window.showInformationMessage('LVGL Preview settings changed. Restarting preview...');
+
+				// Get the current file being previewed and restart
+				const currentFile = previewManager.getCurrentFile();
+				if (currentFile) {
+					statusBarManager?.setStatus('initializing');
+					await previewManager.stopPreview();
+					await previewManager.startPreview(currentFile);
+					statusBarManager?.setStatus('running');
+				}
+			}
+		})
+	);
 }
 
 async function showWelcomeMessage() {
