@@ -198,7 +198,7 @@ export class PreviewManager implements vscode.Disposable {
 	 */
 	public async rebuild(): Promise<void> {
 		if (this.currentFile) {
-			await this.compileAndUpdate(this.currentFile);
+			await this.compileAndUpdate(this.currentFile, true);
 		}
 	}
 
