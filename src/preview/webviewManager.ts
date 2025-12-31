@@ -15,6 +15,7 @@ import { HtmlTemplate } from './htmlTemplate';
 export class WebviewManager implements vscode.Disposable {
 	private panel: vscode.WebviewPanel | undefined;
 	private outputChannel: vscode.OutputChannel;
+	private onReloadCallback?: () => void | Promise<void>;
 
 	/**
 	 * @constructor
@@ -22,12 +23,15 @@ export class WebviewManager implements vscode.Disposable {
 	 *
 	 * @param context - The VS Code extension context
 	 * @param outputChannel - Output channel for logging
+	 * @param onReload - Optional callback invoked when reload button is clicked in webview
 	 */
 	constructor(
 		private context: vscode.ExtensionContext,
-		outputChannel: vscode.OutputChannel
+		outputChannel: vscode.OutputChannel,
+		onReload?: () => void | Promise<void>
 	) {
 		this.outputChannel = outputChannel;
+		this.onReloadCallback = onReload;
 	}
 
 	/**
@@ -139,6 +143,9 @@ export class WebviewManager implements vscode.Disposable {
 				break;
 			case 'reload':
 				this.outputChannel.appendLine('Webview requesting reload');
+				if (this.onReloadCallback) {
+					void Promise.resolve(this.onReloadCallback());
+				}
 				break;
 		}
 	}

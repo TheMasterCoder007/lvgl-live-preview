@@ -127,7 +127,7 @@
 </head>
 <body>
 <div id="toolbar">
-    <button class="toolbar-button" onclick="reload()">⟳ Reload</button>
+    <button class="toolbar-button" id="reload-button">⟳ Reload</button>
 </div>
 
 <div id="status">Waiting for compilation...</div>
@@ -148,6 +148,16 @@
     const vscode = acquireVsCodeApi();
 
     vscode.postMessage({ type: 'ready' });
+
+    // Set up reload button event listener
+    document.addEventListener('DOMContentLoaded', function() {
+        const reloadButton = document.getElementById('reload-button');
+        if (reloadButton) {
+            reloadButton.addEventListener('click', function() {
+                reload();
+            });
+        }
+    });
 
     function setStatus(message) {
         document.getElementById('status').textContent = message;
