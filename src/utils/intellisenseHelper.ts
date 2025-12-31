@@ -19,7 +19,7 @@ interface CppConfiguration {
  * @brief Represents the c_cpp_properties.json file structure.
  */
 interface CppProperties {
-	version: number;
+	version?: number;
 	configurations: CppConfiguration[];
 }
 
@@ -119,14 +119,12 @@ export class IntellisenseHelper {
 	/**
 	 * @brief Creates a default C/C++ properties configuration.
 	 *
-	 * Generates a basic CppProperties object with version 1 and a single
-	 * platform-appropriate configuration.
+	 * Generates a basic CppProperties object with a single platform-appropriate configuration.
 	 *
 	 * @returns A default CppProperties object with minimal configuration
 	 */
 	private static createDefaultConfig(): CppProperties {
 		return {
-			version: 1,
 			configurations: [this.createDefaultConfiguration()],
 		};
 	}
