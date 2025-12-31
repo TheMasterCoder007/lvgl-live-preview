@@ -119,14 +119,14 @@ export class IntellisenseHelper {
 	/**
 	 * @brief Creates a default C/C++ properties configuration.
 	 *
-	 * Generates a basic CppProperties object with version 4 and a single
+	 * Generates a basic CppProperties object with version 1 and a single
 	 * platform-appropriate configuration.
 	 *
 	 * @returns A default CppProperties object with minimal configuration
 	 */
 	private static createDefaultConfig(): CppProperties {
 		return {
-			version: 4,
+			version: 1,
 			configurations: [this.createDefaultConfiguration()],
 		};
 	}
@@ -166,27 +166,5 @@ export class IntellisenseHelper {
 			cppStandard: 'c++17',
 			intelliSenseMode: intelliSenseMode,
 		};
-	}
-
-	/**
-	 * @brief Displays instructions for IntelliSense setup and offers to reload the window.
-	 *
-	 * Shows an information message to the user indicating that LVGL include paths have been
-	 * configured and provides an option to reload the VS Code window to ensure IntelliSense
-	 * picks up the changes immediately.
-	 *
-	 * @param lvglVersion The LVGL version that was configured for IntelliSense
-	 * @returns Promise that resolves when the user dismisses the message or after reload
-	 */
-	public static async showIntelliSenseInstructions(lvglVersion: string): Promise<void> {
-		const message =
-			`LVGL ${lvglVersion} include paths have been added to your workspace settings. ` +
-			`If IntelliSense still shows errors, try reloading the window.`;
-
-		const action = await vscode.window.showInformationMessage(message, 'Reload Window', 'Dismiss');
-
-		if (action === 'Reload Window') {
-			vscode.commands.executeCommand('workbench.action.reloadWindow');
-		}
 	}
 }
