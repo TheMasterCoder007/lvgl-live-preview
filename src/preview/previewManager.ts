@@ -203,6 +203,24 @@ export class PreviewManager implements vscode.Disposable {
 	}
 
 	/**
+	 * @brief Checks if a preview is currently running.
+	 *
+	 * @returns true if a preview is active, false otherwise
+	 */
+	public isRunning(): boolean {
+		return this.currentFile !== undefined && this.webviewManager !== undefined;
+	}
+
+	/**
+	 * @brief Gets the currently previewed file URI.
+	 *
+	 * @returns The URI of the file being previewed, or undefined if no preview is active
+	 */
+	public getCurrentFile(): vscode.Uri | undefined {
+		return this.currentFile;
+	}
+
+	/**
 	 * @brief Stops the preview and cleans up resources.
 	 *
 	 * Disposes the file watcher, webview, and clears diagnostics.
