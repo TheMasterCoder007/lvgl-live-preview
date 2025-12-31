@@ -170,7 +170,7 @@ export class LibraryBuilder {
 			for (const file of files) {
 				const filePath = path.join(this.cachePath, file);
 				try {
-					fs.unlinkSync(filePath);
+					fs.rmSync(filePath, { recursive: true });
 				} catch (error) {
 					this.outputChannel.appendLine(`Failed to delete ${filePath}: ${error}`);
 				}

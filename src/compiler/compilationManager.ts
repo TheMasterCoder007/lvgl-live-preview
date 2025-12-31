@@ -188,23 +188,6 @@ export class CompilationManager implements vscode.Disposable {
 	 */
 	public async clearCache(): Promise<void> {
 		this.libraryBuilder.clearCache();
-
-		// Clear build directory
-		if (fs.existsSync(this.buildPath)) {
-			const files = fs.readdirSync(this.buildPath);
-			for (const file of files) {
-				const filePath = path.join(this.buildPath, file);
-				try {
-					if (fs.statSync(filePath).isDirectory()) {
-						fs.rmSync(filePath, { recursive: true });
-					} else {
-						fs.unlinkSync(filePath);
-					}
-				} catch (error) {
-					this.outputChannel.appendLine(`Failed to delete ${filePath}: ${error}`);
-				}
-			}
-		}
 	}
 
 	/**
