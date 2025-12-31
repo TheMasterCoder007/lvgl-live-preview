@@ -19,8 +19,25 @@ extern void lvgl_live_preview_init(void);
 static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
 static SDL_Texture *texture = NULL;
-static lv_display_t *disp = NULL;
 static void *fb = NULL;
+
+/* LVGL version detection - check for v9+ first, then fall back to v8 */
+#if defined(LVGL_VERSION_MAJOR) && LVGL_VERSION_MAJOR >= 9
+    #define LVGL_V9_OR_LATER 1
+#elif defined(LV_VERSION_MAJOR) && LV_VERSION_MAJOR >= 9
+    #define LVGL_V9_OR_LATER 1
+#else
+    #define LVGL_V9_OR_LATER 0
+#endif
+
+#if LVGL_V9_OR_LATER
+static lv_display_t *disp = NULL;
+#else
+static lv_disp_drv_t disp_drv;
+static lv_disp_draw_buf_t draw_buf;
+static lv_disp_t *disp = NULL;
+static lv_indev_drv_t indev_drv;
+#endif
 
 /* Get display dimensions from lv_conf.h */
 #define DISP_HOR_RES MY_DISP_HOR_RES
@@ -38,18 +55,23 @@ static void main_loop(void) {
     }
 
     /* Handle LVGL tasks */
+#if LVGL_V9_OR_LATER
     lv_timer_handler();
+#else
+    lv_task_handler();
+#endif
     lv_tick_inc(5);
 }
 
 /* Display flush callback */
+#if LVGL_V9_OR_LATER
 static void disp_flush(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *px_map) {
     int32_t x, y;
     int32_t width = lv_area_get_width(area);
     int32_t height = lv_area_get_height(area);
 
     /* LVGL v9 provides color in native 32-bit format when LV_COLOR_DEPTH is 32 */
-    uint32_t *color_p = (uint32_t *)px_map;
+    uint32_t *src = (uint32_t *)px_map;
 
     /* Copy the rendered area to the frame buffer */
     for(y = 0; y < height; y++) {
@@ -57,9 +79,8 @@ static void disp_flush(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *p
 
         for(x = 0; x < width; x++) {
             /* Direct copy - px_map is already in ARGB8888 format */
-            *fb_ptr = *color_p;
-
-            color_p++;
+            *fb_ptr = *src;
+            src++;
             fb_ptr++;
         }
     }
@@ -72,9 +93,53 @@ static void disp_flush(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *p
 
     lv_display_flush_ready(disp_drv);
 }
+#else
+static void disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p) {
+    int32_t x, y;
+    int32_t width = lv_area_get_width(area);
+    int32_t height = lv_area_get_height(area);
+
+    /* Copy the rendered area to the frame buffer */
+    for(y = 0; y < height; y++) {
+        uint32_t *fb_ptr = (uint32_t *)fb + ((area->y1 + y) * DISP_HOR_RES + area->x1);
+
+        for(x = 0; x < width; x++) {
+            /* LVGL v8: Convert lv_color_t to ARGB8888 */
+#if LV_COLOR_DEPTH == 32
+            *fb_ptr = color_p->full;
+#elif LV_COLOR_DEPTH == 16
+            uint8_t r = (color_p->ch.red * 255) / 31;
+            uint8_t g = (color_p->ch.green * 255) / 63;
+            uint8_t b = (color_p->ch.blue * 255) / 31;
+            *fb_ptr = (0xFF << 24) | (r << 16) | (g << 8) | b;
+#else
+            /* Fallback for other color depths */
+            lv_color32_t c32;
+            c32.full = lv_color_to32(*color_p);
+            *fb_ptr = c32.full;
+#endif
+            color_p++;
+            fb_ptr++;
+        }
+    }
+
+    /* Update SDL texture */
+    SDL_UpdateTexture(texture, NULL, fb, DISP_HOR_RES * sizeof(uint32_t));
+    SDL_RenderClear(renderer);
+    SDL_RenderCopy(renderer, texture, NULL, NULL);
+    SDL_RenderPresent(renderer);
+
+    lv_disp_flush_ready(disp_drv);
+}
+#endif
 
 /* Mouse/touch input callback */
+#if LVGL_V9_OR_LATER
 static void mouse_read(lv_indev_t *indev, lv_indev_data_t *data) {
+#else
+static void mouse_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data) {
+    (void)indev_drv;
+#endif
     int x, y;
     uint32_t buttons = SDL_GetMouseState(&x, &y);
 
@@ -152,10 +217,6 @@ int main(int argc, char *argv[]) {
     lv_init();
     printf("LVGL initialized\\n");
 
-    /* Create display */
-    disp = lv_display_create(DISP_HOR_RES, DISP_VER_RES);
-    lv_display_set_flush_cb(disp, disp_flush);
-
     /* Allocate draw buffers */
     size_t buf_size = DISP_HOR_RES * 10 * sizeof(lv_color_t);
     void *buf1 = malloc(buf_size);
@@ -166,14 +227,37 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+#if LVGL_V9_OR_LATER
+    /* LVGL 9.x display initialization */
+    disp = lv_display_create(DISP_HOR_RES, DISP_VER_RES);
+    lv_display_set_flush_cb(disp, disp_flush);
     lv_display_set_buffers(disp, buf1, buf2, buf_size, LV_DISPLAY_RENDER_MODE_PARTIAL);
 
-    printf("Display created\\n");
+    printf("Display created (LVGL 9.x)\\n");
 
-    /* Create input device */
+    /* Create input device - LVGL 9.x */
     lv_indev_t *mouse_indev = lv_indev_create();
     lv_indev_set_type(mouse_indev, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(mouse_indev, mouse_read);
+#else
+    /* LVGL 8.x display initialization */
+    lv_disp_draw_buf_init(&draw_buf, buf1, buf2, DISP_HOR_RES * 10);
+
+    lv_disp_drv_init(&disp_drv);
+    disp_drv.hor_res = DISP_HOR_RES;
+    disp_drv.ver_res = DISP_VER_RES;
+    disp_drv.flush_cb = disp_flush;
+    disp_drv.draw_buf = &draw_buf;
+    disp = lv_disp_drv_register(&disp_drv);
+
+    printf("Display created (LVGL 8.x)\\n");
+
+    /* Create input device - LVGL 8.x */
+    lv_indev_drv_init(&indev_drv);
+    indev_drv.type = LV_INDEV_TYPE_POINTER;
+    indev_drv.read_cb = mouse_read;
+    lv_indev_drv_register(&indev_drv);
+#endif
 
     printf("Input device created\\n");
 
