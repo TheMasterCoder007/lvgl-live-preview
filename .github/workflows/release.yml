@@ -33,7 +33,7 @@ jobs:
 
       # Only run pretest for now. Add tests later once they have been implemented
       - name: Run tests
-        run: npm pretest
+        run: npm run pretest
 
       - name: Publish to VS Code Marketplace
         env:
