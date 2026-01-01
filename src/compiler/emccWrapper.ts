@@ -7,6 +7,7 @@ import { CompilationResult, CompilerError } from '../types';
 import { EmsdkInstaller } from './emsdkInstaller';
 
 const exec = util.promisify(child_process.exec);
+const execFile = util.promisify(child_process.execFile);
 
 /**
  * @class EmccWrapper
@@ -150,14 +151,14 @@ export class EmccWrapper {
 
 		// Use response file for object files to avoid command line length
 		const responseFilePath = path.join(outputDir, 'objects.txt');
-		const normalizedObjects = objectFiles.map((o) => o.replace(/\\/g, '/'));
+		const normalizedObjects = objectFiles.map((o) => `"${o.replace(/\\/g, '/')}"`);
 		fs.writeFileSync(responseFilePath, normalizedObjects.join('\n'), 'utf-8');
 
 		this.outputChannel.appendLine(`Fast compilation: 2 user files + ${objectFiles.length} LVGL objects`);
 
 		// Use -O0 for linking to maximize speed (objects are already optimized)
 		// Use --no-entry-point and other flags to speed up linking
-		const flags = [
+		const args = [
 			'-O0', // Fast linking, objects already optimized
 			'-s',
 			'WASM=1',
@@ -177,21 +178,19 @@ export class EmccWrapper {
 			'ASSERTIONS=0', // Disable assertions for speed
 			'-s',
 			'SAFE_HEAP=0', // Disable safe heap for speed
-			`-I"${lvglIncludePath}"`,
-			`-I"${path.join(lvglIncludePath, 'src')}"`,
-			`"${mainFile.replace(/\\/g, '/')}"`,
-			`"${sourceFile.replace(/\\/g, '/')}"`,
+			`-I${lvglIncludePath}`,
+			`-I${path.join(lvglIncludePath, 'src')}`,
+			mainFile,
+			sourceFile,
 			`@${responseFilePath}`,
 			'-o',
-			`"${jsPath}"`,
+			jsPath,
 		];
-
-		const command = `"${emccPath}" ${flags.join(' ')}`;
 
 		try {
 			const startTime = Date.now();
 
-			const { stderr } = await exec(command, {
+			const { stderr } = await execFile(emccPath, args, {
 				cwd: outputDir,
 				maxBuffer: 10 * 1024 * 1024,
 				timeout: 30000,
