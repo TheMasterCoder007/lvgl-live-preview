@@ -5,7 +5,16 @@ All notable changes to the LVGL Live Preview extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2024-12-31
+## [1.0.1] - 2026-01-01
+
+### Added
+- Added extension icon
+
+### Fixed
+- Fixed issues with Emscripten SDK installation on Unix systems
+- Fixed compilation compatibility issues on Unix Systems
+
+## [1.0.0] - 2025-12-31
 
 ### Added
 - Initial release of LVGL Live Preview extension

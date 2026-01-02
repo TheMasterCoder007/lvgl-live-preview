@@ -6,7 +6,6 @@ import * as util from 'util';
 import { CompilationResult, CompilerError } from '../types';
 import { EmsdkInstaller } from './emsdkInstaller';
 
-const exec = util.promisify(child_process.exec);
 const execFile = util.promisify(child_process.execFile);
 
 /**
@@ -87,7 +86,6 @@ export class EmccWrapper {
 	): Promise<string[]> {
 		const emccPath = this.emsdkInstaller.getEmccPath();
 		const objectFiles: string[] = [];
-		const includeFlags = includePaths.map((p) => `-I"${p}"`).join(' ');
 
 		// Compile files in parallel batches for speed
 		const batchSize = 10;
@@ -97,10 +95,22 @@ export class EmccWrapper {
 			const promises = batch.map(async (sourceFile) => {
 				const baseName = path.basename(sourceFile, '.c');
 				const objFile = path.join(outputDir, `${baseName}.o`);
-				const command = `"${emccPath}" ${optimization} -c "${sourceFile}" -o "${objFile}" ${includeFlags}`;
+
+				// Build args array for execFile
+				const args = [
+					optimization,
+					'-c',
+					sourceFile,
+					'-o',
+					objFile,
+					...includePaths.map((p) => `-I${p}`),
+				];
 
 				try {
-					await exec(command, { maxBuffer: 10 * 1024 * 1024 });
+					await execFile(emccPath, args, {
+						maxBuffer: 10 * 1024 * 1024,
+						shell: process.platform === 'win32', // Use shell on Windows for .bat files
+					});
 					return objFile;
 				} catch (error: unknown) {
 					const message = error instanceof Error ? error.message : String(error);
@@ -190,14 +200,20 @@ export class EmccWrapper {
 		try {
 			const startTime = Date.now();
 
-			const { stderr } = await execFile(emccPath, args, {
+			const { stderr, stdout } = await execFile(emccPath, args, {
 				cwd: outputDir,
 				maxBuffer: 10 * 1024 * 1024,
-				timeout: 30000,
+				timeout: 120000, // 2-minute timeout for a first-time SDL2 build
+				shell: process.platform === 'win32', // Use shell on Windows for .bat files
 			});
 
 			const duration = Date.now() - startTime;
 			this.outputChannel.appendLine(`✓ Compilation completed in ${duration}ms`);
+
+			// Log stdout if it contains useful info (like port downloads)
+			if (stdout && (stdout.includes('port:') || stdout.includes('cache:'))) {
+				this.outputChannel.appendLine(stdout);
+			}
 
 			if (stderr && stderr.includes('error')) {
 				this.outputChannel.appendLine(stderr);
@@ -217,6 +233,16 @@ export class EmccWrapper {
 		} catch (error: unknown) {
 			const err = error as { stderr?: string; stdout?: string; message?: string };
 			this.outputChannel.appendLine(`✗ Compilation failed: ${err.message ?? 'Unknown error'}`);
+
+			// Log full output for debugging
+			if (err.stdout) {
+				this.outputChannel.appendLine('stdout:');
+				this.outputChannel.appendLine(err.stdout);
+			}
+			if (err.stderr) {
+				this.outputChannel.appendLine('stderr:');
+				this.outputChannel.appendLine(err.stderr);
+			}
 
 			const errorOutput = err.stderr || err.stdout || err.message || '';
 			const errors = this.parseCompilerOutput(errorOutput);
