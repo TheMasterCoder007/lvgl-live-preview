@@ -2,6 +2,7 @@
 	"name": "lvgl-live-preview",
 	"displayName": "LVGL Live Preview",
 	"description": "Live preview for LVGL C code with automatic hot-reload using Emscripten",
+	"icon": "assets/icon.png",
 	"version": "0.0.1",
 	"publisher": "themastercoder007",
 	"repository": {
