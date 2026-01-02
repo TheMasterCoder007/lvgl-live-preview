@@ -6,7 +6,7 @@ import * as util from 'util';
 import { CompilationResult, CompilerError } from '../types';
 import { EmsdkInstaller } from './emsdkInstaller';
 
-const exec = util.promisify(child_process.exec);
+const execFile = util.promisify(child_process.execFile);
 
 /**
  * @class EmccWrapper
@@ -86,7 +86,6 @@ export class EmccWrapper {
 	): Promise<string[]> {
 		const emccPath = this.emsdkInstaller.getEmccPath();
 		const objectFiles: string[] = [];
-		const includeFlags = includePaths.map((p) => `-I"${p}"`).join(' ');
 
 		// Compile files in parallel batches for speed
 		const batchSize = 10;
@@ -96,10 +95,22 @@ export class EmccWrapper {
 			const promises = batch.map(async (sourceFile) => {
 				const baseName = path.basename(sourceFile, '.c');
 				const objFile = path.join(outputDir, `${baseName}.o`);
-				const command = `"${emccPath}" ${optimization} -c "${sourceFile}" -o "${objFile}" ${includeFlags}`;
+
+				// Build args array for execFile
+				const args = [
+					optimization,
+					'-c',
+					sourceFile,
+					'-o',
+					objFile,
+					...includePaths.map((p) => `-I${p}`),
+				];
 
 				try {
-					await exec(command, { maxBuffer: 10 * 1024 * 1024 });
+					await execFile(emccPath, args, {
+						maxBuffer: 10 * 1024 * 1024,
+						shell: process.platform === 'win32', // Use shell on Windows for .bat files
+					});
 					return objFile;
 				} catch (error: unknown) {
 					const message = error instanceof Error ? error.message : String(error);
@@ -150,14 +161,14 @@ export class EmccWrapper {
 
 		// Use response file for object files to avoid command line length
 		const responseFilePath = path.join(outputDir, 'objects.txt');
-		const normalizedObjects = objectFiles.map((o) => o.replace(/\\/g, '/'));
+		const normalizedObjects = objectFiles.map((o) => `"${o.replace(/\\/g, '/')}"`);
 		fs.writeFileSync(responseFilePath, normalizedObjects.join('\n'), 'utf-8');
 
 		this.outputChannel.appendLine(`Fast compilation: 2 user files + ${objectFiles.length} LVGL objects`);
 
 		// Use -O0 for linking to maximize speed (objects are already optimized)
 		// Use --no-entry-point and other flags to speed up linking
-		const flags = [
+		const args = [
 			'-O0', // Fast linking, objects already optimized
 			'-s',
 			'WASM=1',
@@ -177,28 +188,32 @@ export class EmccWrapper {
 			'ASSERTIONS=0', // Disable assertions for speed
 			'-s',
 			'SAFE_HEAP=0', // Disable safe heap for speed
-			`-I"${lvglIncludePath}"`,
-			`-I"${path.join(lvglIncludePath, 'src')}"`,
-			`"${mainFile.replace(/\\/g, '/')}"`,
-			`"${sourceFile.replace(/\\/g, '/')}"`,
+			`-I${lvglIncludePath}`,
+			`-I${path.join(lvglIncludePath, 'src')}`,
+			mainFile,
+			sourceFile,
 			`@${responseFilePath}`,
 			'-o',
-			`"${jsPath}"`,
+			jsPath,
 		];
-
-		const command = `"${emccPath}" ${flags.join(' ')}`;
 
 		try {
 			const startTime = Date.now();
 
-			const { stderr } = await exec(command, {
+			const { stderr, stdout } = await execFile(emccPath, args, {
 				cwd: outputDir,
 				maxBuffer: 10 * 1024 * 1024,
-				timeout: 30000,
+				timeout: 120000, // 2-minute timeout for a first-time SDL2 build
+				shell: process.platform === 'win32', // Use shell on Windows for .bat files
 			});
 
 			const duration = Date.now() - startTime;
 			this.outputChannel.appendLine(`✓ Compilation completed in ${duration}ms`);
+
+			// Log stdout if it contains useful info (like port downloads)
+			if (stdout && (stdout.includes('port:') || stdout.includes('cache:'))) {
+				this.outputChannel.appendLine(stdout);
+			}
 
 			if (stderr && stderr.includes('error')) {
 				this.outputChannel.appendLine(stderr);
@@ -218,6 +233,16 @@ export class EmccWrapper {
 		} catch (error: unknown) {
 			const err = error as { stderr?: string; stdout?: string; message?: string };
 			this.outputChannel.appendLine(`✗ Compilation failed: ${err.message ?? 'Unknown error'}`);
+
+			// Log full output for debugging
+			if (err.stdout) {
+				this.outputChannel.appendLine('stdout:');
+				this.outputChannel.appendLine(err.stdout);
+			}
+			if (err.stderr) {
+				this.outputChannel.appendLine('stderr:');
+				this.outputChannel.appendLine(err.stderr);
+			}
 
 			const errorOutput = err.stderr || err.stdout || err.message || '';
 			const errors = this.parseCompilerOutput(errorOutput);

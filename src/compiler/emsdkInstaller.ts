@@ -119,6 +119,13 @@ export class EmsdkInstaller {
 					// Clean up zip file
 					fs.unlinkSync(zipPath);
 
+					// Set execute permissions on emsdk script for Unix-like systems
+					if (process.platform !== 'win32') {
+						const emsdkScript = path.join(this.getEmsdkRoot(), 'emsdk');
+						this.outputChannel.appendLine(`Setting execute permissions on ${emsdkScript}`);
+						fs.chmodSync(emsdkScript, 0o755);
+					}
+
 					progress.report({ message: 'Installing SDK...' });
 					this.outputChannel.appendLine('Installing Emscripten SDK...');
 					await this.runEmsdkCommand('install', 'latest');
