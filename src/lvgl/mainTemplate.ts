@@ -13,8 +13,10 @@ export class MainTemplate {
 #include <stdbool.h>
 #include <stdio.h>
 
-/* User function declaration */
+/* User function declaration - only visible when using LVGL Live Preview extension */
+#ifdef LVGL_LIVE_PREVIEW
 extern void lvgl_live_preview_init(void);
+#endif
 
 static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
@@ -262,9 +264,11 @@ int main(int argc, char *argv[]) {
     printf("Input device created\\n");
 
     /* Call user initialization */
+#ifdef LVGL_LIVE_PREVIEW
     printf("Calling user init...\\n");
     lvgl_live_preview_init();
     printf("User init complete\\n");
+#endif
 
     /* Start main loop */
     emscripten_set_main_loop(main_loop, 0, 1);

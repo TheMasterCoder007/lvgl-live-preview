@@ -213,6 +213,7 @@ async function showWelcomeMessage() {
 			content: `
 #include "lvgl.h"
 
+#ifdef LVGL_LIVE_PREVIEW
 void lvgl_live_preview_init(void) {
     // Create a simple button
     lv_obj_t *btn = lv_btn_create(lv_scr_act());
@@ -223,6 +224,7 @@ void lvgl_live_preview_init(void) {
     lv_label_set_text(label, "Hello LVGL!");
     lv_obj_center(label);
 }
+#endif
 `,
 		});
 		await vscode.window.showTextDocument(doc);
