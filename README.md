@@ -42,7 +42,7 @@ Then press F5 to run the extension in development mode.
 ## Quick Start
 
 1. Create a new C file with LVGL code
-2. Define a `lvgl_live_preview_init()` function (required entry point)
+2. Define a `lvgl_live_preview_init()` function wrapped in `#ifdef LVGL_LIVE_PREVIEW` (required entry point)
 3. Press `Ctrl+Shift+L` or run "LVGL: Start Live Preview" from the command palette
 4. Wait for Emscripten to download (first time only, ~200MB)
 5. Your LVGL UI will appear in a webview panel!
@@ -52,6 +52,7 @@ Then press F5 to run the extension in development mode.
 ```c
 #include "lvgl.h"
 
+#ifdef LVGL_LIVE_PREVIEW
 void lvgl_live_preview_init(void) {
     // Create a simple button
     lv_obj_t *btn = lv_btn_create(lv_scr_act());
@@ -62,11 +63,12 @@ void lvgl_live_preview_init(void) {
     lv_label_set_text(label, "Hello LVGL!");
     lv_obj_center(label);
 }
+#endif
 ```
 
 ## Requirements
 
-- **Required Entry Point**: Your C file must define a `void lvgl_live_preview_init(void)` function. This is where you initialize your LVGL UI.
+- **Required Entry Point**: Your C file must define a `void lvgl_live_preview_init(void)` function wrapped in `#ifdef LVGL_LIVE_PREVIEW`. This is where you initialize your LVGL UI. The `LVGL_LIVE_PREVIEW` define is automatically provided by the extension during compilation, ensuring the function is only visible when using the live preview feature.
 - **LVGL API**: Use standard LVGL API calls. The extension supports LVGL v8.x and v9.x.
 - **Single File**: Currently, only single-file previews are supported (multi-file support is planned for the future).
 
@@ -122,7 +124,7 @@ This approach solves the common problem of Emscripten modules failing to reload 
 - Manually download from the output channel for details
 
 ### Compilation Errors
-- Ensure you have defined `lvgl_live_preview_init()` function
+- Ensure you have defined `lvgl_live_preview_init()` function wrapped in `#ifdef LVGL_LIVE_PREVIEW`
 - Check the Problems panel (Ctrl+Shift+M) for detailed errors
 - View the LVGL Preview output channel for compiler messages
 

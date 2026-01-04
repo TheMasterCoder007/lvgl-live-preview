@@ -99,6 +99,7 @@ export class EmccWrapper {
 				// Build args array for execFile
 				const args = [
 					optimization,
+					'-DLVGL_LIVE_PREVIEW',
 					'-c',
 					sourceFile,
 					'-o',
@@ -170,6 +171,7 @@ export class EmccWrapper {
 		// Use --no-entry-point and other flags to speed up linking
 		const args = [
 			'-O0', // Fast linking, objects already optimized
+			'-DLVGL_LIVE_PREVIEW',
 			'-s',
 			'WASM=1',
 			'-s',
