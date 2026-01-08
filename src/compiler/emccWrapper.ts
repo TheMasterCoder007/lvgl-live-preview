@@ -76,13 +76,15 @@ export class EmccWrapper {
 	 * @param outputDir Directory where object files will be written.
 	 * @param includePaths Array of include directory paths.
 	 * @param optimization Optimization level flag (default: '-O2').
+	 * @param defines Array of preprocessor defines to add (optional).
 	 * @returns Promise resolving to an array of successfully compiled object file paths.
 	 */
 	public async compileToObjects(
 		sourceFiles: string[],
 		outputDir: string,
 		includePaths: string[],
-		optimization: string = '-O2'
+		optimization: string = '-O2',
+		defines: string[] = []
 	): Promise<string[]> {
 		const emccPath = this.emsdkInstaller.getEmccPath();
 		const objectFiles: string[] = [];
@@ -100,6 +102,7 @@ export class EmccWrapper {
 				const args = [
 					optimization,
 					'-DLVGL_LIVE_PREVIEW',
+					...defines.map((d) => `-D${d}`),
 					'-c',
 					sourceFile,
 					'-o',
@@ -146,6 +149,8 @@ export class EmccWrapper {
 	 * @param objectFiles Array of pre-compiled object file paths to link.
 	 * @param lvglIncludePath Path to LVGL include directory.
 	 * @param mainFile Path to the main entry point file.
+	 * @param dependencyObjects Array of dependency object file paths (optional).
+	 * @param defines Array of preprocessor defines (optional).
 	 * @returns Promise resolving to CompilationResult with success status, output paths, and any errors/warnings.
 	 */
 	public async compileWithObjects(
@@ -153,7 +158,9 @@ export class EmccWrapper {
 		outputDir: string,
 		objectFiles: string[],
 		lvglIncludePath: string,
-		mainFile: string
+		mainFile: string,
+		dependencyObjects: string[] = [],
+		defines: string[] = []
 	): Promise<CompilationResult> {
 		const emccPath = this.emsdkInstaller.getEmccPath();
 		const outputName = path.join(outputDir, 'output');
@@ -162,16 +169,21 @@ export class EmccWrapper {
 
 		// Use response file for object files to avoid command line length
 		const responseFilePath = path.join(outputDir, 'objects.txt');
-		const normalizedObjects = objectFiles.map((o) => `"${o.replace(/\\/g, '/')}"`);
+		const allObjects = [...objectFiles, ...dependencyObjects];
+		const normalizedObjects = allObjects.map((o) => `"${o.replace(/\\/g, '/')}"`);
 		fs.writeFileSync(responseFilePath, normalizedObjects.join('\n'), 'utf-8');
 
-		this.outputChannel.appendLine(`Fast compilation: 2 user files + ${objectFiles.length} LVGL objects`);
+		const fileCount = 2 + (dependencyObjects.length > 0 ? dependencyObjects.length : 0);
+		this.outputChannel.appendLine(
+			`Fast compilation: ${fileCount} user files + ${objectFiles.length} LVGL objects`
+		);
 
 		// Use -O0 for linking to maximize speed (objects are already optimized)
 		// Use --no-entry-point and other flags to speed up linking
 		const args = [
 			'-O0', // Fast linking, objects already optimized
 			'-DLVGL_LIVE_PREVIEW',
+			...defines.map((d) => `-D${d}`),
 			'-s',
 			'WASM=1',
 			'-s',

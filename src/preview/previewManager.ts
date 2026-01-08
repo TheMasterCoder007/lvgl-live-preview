@@ -76,7 +76,7 @@ export class PreviewManager implements vscode.Disposable {
 			this.outputChannel.appendLine('[PreviewManager] Starting compilation...');
 			await this.compileAndUpdate(fileUri);
 
-			// Start watching the file for changes
+			// Start watching files for changes
 			const config = vscode.workspace.getConfiguration('lvglPreview');
 			const autoReload = config.get<boolean>('autoReload', true);
 			const debounceDelay = config.get<number>('debounceDelay', 300);
@@ -84,11 +84,26 @@ export class PreviewManager implements vscode.Disposable {
 			if (autoReload) {
 				this.fileWatcher = new FileWatcher(async (uri) => {
 					this.outputChannel.appendLine(`File changed: ${uri.fsPath}`);
-					await this.compileAndUpdate(uri, true); // Pass true for reload
+					await this.compileAndUpdate(fileUri, true); // Always use original fileUri for compilation
 				}, debounceDelay);
 
-				this.fileWatcher.watchFile(fileUri);
-				this.outputChannel.appendLine('[PreviewManager] File watcher started');
+				// Check if we have a project config with dependencies
+				const projectConfig = this.compilationManager.getCurrentConfig();
+				if (projectConfig) {
+					// Watch main file and all dependencies
+					const filesToWatch = [
+						vscode.Uri.file(projectConfig.mainFile),
+						...projectConfig.dependencies.map((dep) => vscode.Uri.file(dep)),
+					];
+					this.fileWatcher.watchFiles(filesToWatch);
+					this.outputChannel.appendLine(
+						`[PreviewManager] File watcher started for ${filesToWatch.length} files`
+					);
+				} else {
+					// Single file mode
+					this.fileWatcher.watchFile(fileUri);
+					this.outputChannel.appendLine('[PreviewManager] File watcher started');
+				}
 			}
 
 			this.outputChannel.appendLine('[PreviewManager] Preview started successfully');

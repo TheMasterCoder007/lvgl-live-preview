@@ -1,12 +1,15 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 import { EmccWrapper } from './emccWrapper';
 import { LibraryBuilder } from '../lvgl/libraryBuilder';
 import { VersionManager } from '../lvgl/versionManager';
 import { MainTemplate } from '../lvgl/mainTemplate';
 import { IntellisenseHelper } from '../utils/intellisenseHelper';
-import { CompilationResult } from '../types';
+import { CompilationResult, ResolvedProjectConfig } from '../types';
+import { DependencyCache } from '../cache/dependencyCache';
+import { ConfigLoader } from '../utils/configLoader';
 
 /**
  * @class CompilationManager
@@ -20,9 +23,12 @@ export class CompilationManager implements vscode.Disposable {
 	private emccWrapper: EmccWrapper;
 	private libraryBuilder: LibraryBuilder;
 	private versionManager: VersionManager;
-	private outputChannel: vscode.OutputChannel;
+	private readonly outputChannel: vscode.OutputChannel;
 	private readonly buildPath: string;
 	private diagnosticCollection: vscode.DiagnosticCollection;
+	private readonly context: vscode.ExtensionContext;
+	private dependencyCache: DependencyCache | undefined;
+	private currentProjectConfig: ResolvedProjectConfig | null = null;
 
 	/**
 	 * @constructor
@@ -34,6 +40,7 @@ export class CompilationManager implements vscode.Disposable {
 	 * @param outputChannel Output channel for displaying compilation logs to the user.
 	 */
 	constructor(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel) {
+		this.context = context;
 		this.outputChannel = outputChannel;
 		this.emccWrapper = new EmccWrapper(context, outputChannel);
 		this.libraryBuilder = new LibraryBuilder(context, outputChannel);
@@ -50,13 +57,15 @@ export class CompilationManager implements vscode.Disposable {
 	 * @brief Compiles a user's LVGL C source file to WebAssembly.
 	 *
 	 * Performs the complete compilation workflow:
-	 * 1. Retrieves configuration settings (LVGL version, optimization, display size)
-	 * 2. Ensures the specified LVGL version is downloaded
-	 * 3. Updates IntelliSense configuration for the workspace
-	 * 4. Builds or retrieves cached LVGL object files
-	 * 5. Generates the main entry point file
-	 * 6. Compiles the user file with LVGL objects
-	 * 7. Updates VS Code diagnostics with any errors/warnings
+	 * 1. Loads project configuration if available
+	 * 2. Retrieves configuration settings (LVGL version, optimization, display size)
+	 * 3. Ensures the specified LVGL version is downloaded
+	 * 4. Updates IntelliSense configuration for the workspace
+	 * 5. Builds or retrieves cached LVGL object files
+	 * 6. Compiles dependencies with caching
+	 * 7. Generates the main entry point file
+	 * 8. Compiles the user file with LVGL objects and dependencies
+	 * 9. Updates VS Code diagnostics with any errors/warnings
 	 *
 	 * @param fileUri URI of the C source file to compile.
 	 * @returns Promise resolving to CompilationResult with success status and any errors/warnings.
@@ -68,6 +77,34 @@ export class CompilationManager implements vscode.Disposable {
 		this.outputChannel.appendLine(`Starting compilation of ${fileUri.fsPath}`);
 
 		try {
+			// Load project configuration
+			const projectConfig = await ConfigLoader.loadConfig(fileUri, this.outputChannel);
+			this.currentProjectConfig = projectConfig;
+
+			// Determine the actual main file to compile
+			let mainSourceFile: string;
+			let dependencies: string[] = [];
+			let defines: string[] = [];
+
+			if (projectConfig) {
+				mainSourceFile = projectConfig.mainFile;
+				dependencies = projectConfig.dependencies;
+				defines = projectConfig.defines;
+
+				this.outputChannel.appendLine(`Using project config mode:`);
+				this.outputChannel.appendLine(`  Main file: ${mainSourceFile}`);
+				this.outputChannel.appendLine(`  Dependencies: ${dependencies.length} files`);
+				this.outputChannel.appendLine(`  Defines: ${defines.join(', ')}`);
+
+				// Initialize dependency cache
+				const projectId = this.getProjectId(projectConfig.configFileDir);
+				this.dependencyCache = new DependencyCache(this.context, projectId, this.outputChannel);
+			} else {
+				// Single file mode
+				mainSourceFile = fileUri.fsPath;
+				this.outputChannel.appendLine('Using single-file mode');
+			}
+
 			// Ensure LVGL version is downloaded
 			const lvglPath = await this.versionManager.ensureVersion(lvglVersion);
 			this.outputChannel.appendLine(`LVGL path: ${lvglPath}`);
@@ -84,29 +121,42 @@ export class CompilationManager implements vscode.Disposable {
 			// Get LVGL include path
 			const lvglIncludePath = this.versionManager.getIncludePath(lvglVersion);
 
+			// Compile dependencies if any
+			let dependencyObjects: string[] = [];
+			if (dependencies.length > 0 && this.dependencyCache) {
+				dependencyObjects = await this.compileDependencies(
+					dependencies,
+					lvglIncludePath,
+					config.get<string>('emccOptimization', '-O1'),
+					defines
+				);
+			}
+
 			// Generate main.c
 			const mainPath = path.join(this.buildPath, 'main.c');
 			MainTemplate.generateMainFile(mainPath);
 
 			// Create an output directory for this file
-			const fileName = path.basename(fileUri.fsPath, '.c');
+			const fileName = path.basename(mainSourceFile, '.c');
 			const outputDir = path.join(this.buildPath, fileName);
 
 			if (!fs.existsSync(outputDir)) {
 				fs.mkdirSync(outputDir, { recursive: true });
 			}
 
-			// Compile a user file with objects
+			// Compile user file with objects and dependencies
 			const result = await this.emccWrapper.compileWithObjects(
-				fileUri.fsPath,
+				mainSourceFile,
 				outputDir,
 				objectFiles,
 				lvglIncludePath,
-				mainPath
+				mainPath,
+				dependencyObjects,
+				defines
 			);
 
 			// Update diagnostics
-			this.updateDiagnostics(fileUri, result);
+			this.updateDiagnostics(vscode.Uri.file(mainSourceFile), result);
 
 			if (result.success) {
 				this.outputChannel.appendLine('Compilation successful!');
@@ -134,6 +184,90 @@ export class CompilationManager implements vscode.Disposable {
 				warnings: [],
 			};
 		}
+	}
+
+	/**
+	 * @brief Compiles dependency files with caching support.
+	 *
+	 * @param dependencies Array of dependency file paths
+	 * @param lvglIncludePath Path to LVGL include directory
+	 * @param optimization Optimization level
+	 * @param defines Array of preprocessor defines
+	 * @returns Array of compiled object file paths
+	 */
+	private async compileDependencies(
+		dependencies: string[],
+		lvglIncludePath: string,
+		optimization: string,
+		defines: string[]
+	): Promise<string[]> {
+		if (!this.dependencyCache) {
+			throw new Error('Dependency cache not initialized');
+		}
+
+		this.outputChannel.appendLine(`Compiling ${dependencies.length} dependencies...`);
+
+		const cacheDir = this.dependencyCache.getCacheDir();
+		const validCache = this.dependencyCache.getValidCachedObjects(dependencies);
+		const objectFiles: string[] = [];
+
+		// Separate cached and uncached dependencies
+		const filesToCompile: string[] = [];
+		for (const dep of dependencies) {
+			const cachedObj = validCache.get(dep);
+			if (cachedObj) {
+				this.outputChannel.appendLine(`  ✓ Using cached: ${path.basename(dep)}`);
+				objectFiles.push(cachedObj);
+			} else {
+				filesToCompile.push(dep);
+			}
+		}
+
+		// Compile uncached dependencies
+		if (filesToCompile.length > 0) {
+			this.outputChannel.appendLine(`  Compiling ${filesToCompile.length} changed dependencies...`);
+
+			const includePaths = [lvglIncludePath, path.join(lvglIncludePath, 'src')];
+			const compiled = await this.emccWrapper.compileToObjects(
+				filesToCompile,
+				cacheDir,
+				includePaths,
+				optimization,
+				defines
+			);
+
+			// Update cache for newly compiled files
+			for (let i = 0; i < filesToCompile.length; i++) {
+				const sourcePath = filesToCompile[i];
+				const objPath = compiled[i];
+				if (objPath && fs.existsSync(objPath)) {
+					this.dependencyCache.updateCache(sourcePath, objPath);
+					objectFiles.push(objPath);
+				}
+			}
+		}
+
+		this.outputChannel.appendLine(`Dependencies compiled: ${objectFiles.length}/${dependencies.length}`);
+		return objectFiles;
+	}
+
+	/**
+	 * @brief Generates a unique project ID from the config directory path.
+	 *
+	 * @param configDir Path to the directory containing the config file
+	 * @returns Hash-based project ID
+	 */
+	private getProjectId(configDir: string): string {
+		return crypto.createHash('sha256').update(configDir).digest('hex').substring(0, 8);
+	}
+
+	/**
+	 * @brief Gets the current project configuration.
+	 *
+	 * @returns Current resolved project config or null
+	 */
+	public getCurrentConfig(): ResolvedProjectConfig | null {
+		return this.currentProjectConfig;
 	}
 
 	/**
@@ -181,13 +315,18 @@ export class CompilationManager implements vscode.Disposable {
 	/**
 	 * @brief Clears all cached build artifacts.
 	 *
-	 * Removes cached LVGL library objects and clears the build directory.
+	 * Removes cached LVGL library objects, dependency object files, and clears the build directory.
 	 * Useful when forcing a complete rebuild or troubleshooting compilation issues.
 	 *
 	 * @returns Promise that resolves when cache clearing is complete.
 	 */
 	public async clearCache(): Promise<void> {
 		this.libraryBuilder.clearCache();
+
+		// Also clear the dependency cache if it exists
+		if (this.dependencyCache) {
+			this.dependencyCache.clear();
+		}
 	}
 
 	/**
