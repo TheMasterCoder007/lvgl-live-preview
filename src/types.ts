@@ -56,6 +56,11 @@ export interface LvglProjectConfig {
 	dependencies?: string[];
 
 	/**
+	 * Array of include directory paths for header files
+	 */
+	includePaths?: string[];
+
+	/**
 	 * Global C preprocessor defines to add during compilation
 	 */
 	defines?: string[];
@@ -67,6 +72,7 @@ export interface LvglProjectConfig {
 export interface ResolvedProjectConfig {
 	mainFile: string;
 	dependencies: string[];
+	includePaths: string[];
 	defines: string[];
 	configFileDir: string;
 }

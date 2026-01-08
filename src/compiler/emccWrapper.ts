@@ -150,6 +150,7 @@ export class EmccWrapper {
 	 * @param lvglIncludePath Path to LVGL include directory.
 	 * @param mainFile Path to the main entry point file.
 	 * @param dependencyObjects Array of dependency object file paths (optional).
+	 * @param userIncludePaths Array of user-specified include paths (optional).
 	 * @param defines Array of preprocessor defines (optional).
 	 * @returns Promise resolving to CompilationResult with success status, output paths, and any errors/warnings.
 	 */
@@ -160,6 +161,7 @@ export class EmccWrapper {
 		lvglIncludePath: string,
 		mainFile: string,
 		dependencyObjects: string[] = [],
+		userIncludePaths: string[] = [],
 		defines: string[] = []
 	): Promise<CompilationResult> {
 		const emccPath = this.emsdkInstaller.getEmccPath();
@@ -204,6 +206,7 @@ export class EmccWrapper {
 			'SAFE_HEAP=0', // Disable safe heap for speed
 			`-I${lvglIncludePath}`,
 			`-I${path.join(lvglIncludePath, 'src')}`,
+			...userIncludePaths.map((p) => `-I${p}`),
 			mainFile,
 			sourceFile,
 			`@${responseFilePath}`,

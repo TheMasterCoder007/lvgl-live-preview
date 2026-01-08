@@ -84,16 +84,19 @@ export class CompilationManager implements vscode.Disposable {
 			// Determine the actual main file to compile
 			let mainSourceFile: string;
 			let dependencies: string[] = [];
+			let userIncludePaths: string[] = [];
 			let defines: string[] = [];
 
 			if (projectConfig) {
 				mainSourceFile = projectConfig.mainFile;
 				dependencies = projectConfig.dependencies;
+				userIncludePaths = projectConfig.includePaths;
 				defines = projectConfig.defines;
 
 				this.outputChannel.appendLine(`Using project config mode:`);
 				this.outputChannel.appendLine(`  Main file: ${mainSourceFile}`);
 				this.outputChannel.appendLine(`  Dependencies: ${dependencies.length} files`);
+				this.outputChannel.appendLine(`  Include paths: ${userIncludePaths.length} directories`);
 				this.outputChannel.appendLine(`  Defines: ${defines.join(', ')}`);
 
 				// Initialize dependency cache
@@ -128,6 +131,7 @@ export class CompilationManager implements vscode.Disposable {
 					dependencies,
 					lvglIncludePath,
 					config.get<string>('emccOptimization', '-O1'),
+					userIncludePaths,
 					defines
 				);
 			}
@@ -152,6 +156,7 @@ export class CompilationManager implements vscode.Disposable {
 				lvglIncludePath,
 				mainPath,
 				dependencyObjects,
+				userIncludePaths,
 				defines
 			);
 
@@ -192,6 +197,7 @@ export class CompilationManager implements vscode.Disposable {
 	 * @param dependencies Array of dependency file paths
 	 * @param lvglIncludePath Path to LVGL include directory
 	 * @param optimization Optimization level
+	 * @param userIncludePaths Array of user-specified include paths
 	 * @param defines Array of preprocessor defines
 	 * @returns Array of compiled object file paths
 	 */
@@ -199,6 +205,7 @@ export class CompilationManager implements vscode.Disposable {
 		dependencies: string[],
 		lvglIncludePath: string,
 		optimization: string,
+		userIncludePaths: string[],
 		defines: string[]
 	): Promise<string[]> {
 		if (!this.dependencyCache) {
@@ -227,7 +234,7 @@ export class CompilationManager implements vscode.Disposable {
 		if (filesToCompile.length > 0) {
 			this.outputChannel.appendLine(`  Compiling ${filesToCompile.length} changed dependencies...`);
 
-			const includePaths = [lvglIncludePath, path.join(lvglIncludePath, 'src')];
+			const includePaths = [lvglIncludePath, path.join(lvglIncludePath, 'src'), ...userIncludePaths];
 			const compiled = await this.emccWrapper.compileToObjects(
 				filesToCompile,
 				cacheDir,

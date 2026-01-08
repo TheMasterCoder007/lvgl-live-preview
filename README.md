@@ -90,6 +90,10 @@ For projects with multiple C files, create a `.lvgl-live-preview.json` file at y
     "utils.c",
     "drivers/display.c"
   ],
+  "includePaths": [
+    "./include",
+    "../common/headers"
+  ],
   "defines": [
     "MY_CUSTOM_DEFINE",
     "DEBUG_MODE=1"
@@ -100,6 +104,7 @@ For projects with multiple C files, create a `.lvgl-live-preview.json` file at y
 **Configuration Options:**
 - `mainFile` (required): Path to the main C file containing `lvgl_live_preview_init()`. Paths are relative to the config file location.
 - `dependencies` (optional): Array of C files to compile with the main file. These are compiled to `.o` files and cached.
+- `includePaths` (optional): Array of include directory paths for header files. Paths are relative to the config file location.
 - `defines` (optional): Array of preprocessor defines to add during compilation.
 
 **Features:**

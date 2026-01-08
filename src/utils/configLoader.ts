@@ -55,6 +55,7 @@ export class ConfigLoader {
 
 			outputChannel.appendLine(`Config loaded: main=${resolvedConfig.mainFile}`);
 			outputChannel.appendLine(`  Dependencies: ${resolvedConfig.dependencies.length} files`);
+			outputChannel.appendLine(`  Include paths: ${resolvedConfig.includePaths.length} directories`);
 			outputChannel.appendLine(`  Defines: ${resolvedConfig.defines.join(', ')}`);
 
 			return resolvedConfig;
@@ -132,6 +133,18 @@ export class ConfigLoader {
 			}
 		}
 
+		if (cfg.includePaths !== undefined) {
+			if (!Array.isArray(cfg.includePaths)) {
+				throw new Error(`'includePaths' must be an array in ${configPath}`);
+			}
+
+			for (const includePath of cfg.includePaths) {
+				if (typeof includePath !== 'string') {
+					throw new Error(`All includePaths must be strings in ${configPath}`);
+				}
+			}
+		}
+
 		if (cfg.defines !== undefined) {
 			if (!Array.isArray(cfg.defines)) {
 				throw new Error(`'defines' must be an array in ${configPath}`);
@@ -175,9 +188,30 @@ export class ConfigLoader {
 			}
 		}
 
+		// Resolve include paths
+		const includePaths: string[] = [];
+		if (config.includePaths) {
+			for (const includePath of config.includePaths) {
+				const resolvedPath = path.isAbsolute(includePath)
+					? includePath
+					: path.resolve(configDir, includePath);
+
+				if (!fs.existsSync(resolvedPath)) {
+					throw new Error(`Include path directory not found: ${resolvedPath}`);
+				}
+
+				if (!fs.statSync(resolvedPath).isDirectory()) {
+					throw new Error(`Include path is not a directory: ${resolvedPath}`);
+				}
+
+				includePaths.push(resolvedPath);
+			}
+		}
+
 		return {
 			mainFile,
 			dependencies,
+			includePaths,
 			defines: config.defines || [],
 			configFileDir: configDir,
 		};
