@@ -5,6 +5,28 @@ All notable changes to the LVGL Live Preview extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-01-08
+
+### Added
+- Multi-file project support with `.lvgl-live-preview.json` configuration
+- Dependency management system for compiling multiple C files together
+- Smart caching for dependency object files with incremental compilation
+- Custom preprocessor defines support via configuration file
+- Multi-file watching: all source files are monitored for changes
+- Automatic detection of file modifications with hash-based validation
+
+### Changed
+- Updated compilation workflow to support both single-file and multi-file modes
+- Enhanced file watcher to monitor multiple files simultaneously
+- Improved logging for dependency compilation status
+
+### Technical Details
+- New `ConfigLoader` utility for parsing `.lvgl-live-preview.json`
+- New `DependencyCache` class for managing `.o` file caching
+- Extended `EmccWrapper` to support custom defines and dependency objects
+- Enhanced `CompilationManager` with dependency compilation pipeline
+- Updated `PreviewManager` to watch all project source files
+
 ## [1.0.2] - 2026-01-04
 
 ### Added

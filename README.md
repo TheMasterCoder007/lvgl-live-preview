@@ -15,7 +15,10 @@ LVGL Live Preview is a Visual Studio Code extension that provides real-time prev
 - 🎨 **Interactive**: Full mouse/touch input support
 - ⚙️ **Configurable**: Customize display size, LVGL version, and compiler optimization
 - 📦 **Zero Setup**: Emscripten SDK is downloaded and installed automatically
-- 🎯 **Single File**: Works with single C files containing LVGL code
+- 🎯 **Single or Multi-File**: Works with single C files or multi-file projects with dependencies
+- 📁 **Dependency Management**: Configure dependencies via `.lvgl-live-preview.json` with incremental compilation
+- 🔧 **Custom Defines**: Add global preprocessor defines to your project
+- 💾 **Smart Caching**: Dependency object files are cached and only recompiled when changed
 - 🔍 **Error Reporting**: Inline diagnostics for compilation errors
 - ♻️ **Reliable Reloading**: Webview recreation ensures clean module reloading on every change
 
@@ -68,9 +71,46 @@ void lvgl_live_preview_init(void) {
 
 ## Requirements
 
-- **Required Entry Point**: Your C file must define a `void lvgl_live_preview_init(void)` function wrapped in `#ifdef LVGL_LIVE_PREVIEW`. This is where you initialize your LVGL UI. The `LVGL_LIVE_PREVIEW` define is automatically provided by the extension during compilation, ensuring the function is only visible when using the live preview feature.
+- **Required Entry Point**: Your main C file must define a `void lvgl_live_preview_init(void)` function wrapped in `#ifdef LVGL_LIVE_PREVIEW`. This is where you initialize your LVGL UI. The `LVGL_LIVE_PREVIEW` define is automatically provided by the extension during compilation, ensuring the function is only visible when using the live preview feature.
 - **LVGL API**: Use standard LVGL API calls. The extension supports LVGL v8.x and v9.x.
-- **Single File**: Currently, only single-file previews are supported (multi-file support is planned for the future).
+
+## Usage Modes
+
+### Single File Mode
+If no `.lvgl-live-preview.json` configuration file is found, the extension operates in single-file mode. Simply open a C file with LVGL code and start the preview.
+
+### Multi-File Mode (Project Configuration)
+For projects with multiple C files, create a `.lvgl-live-preview.json` file at your project root:
+
+```json
+{
+  "mainFile": "myLvglApp.c",
+  "dependencies": [
+    "helpers.c",
+    "utils.c",
+    "drivers/display.c"
+  ],
+  "includePaths": [
+    "./include",
+    "../common/headers"
+  ],
+  "defines": [
+    "MY_CUSTOM_DEFINE",
+    "DEBUG_MODE=1"
+  ]
+}
+```
+
+**Configuration Options:**
+- `mainFile` (required): Path to the main C file containing `lvgl_live_preview_init()`. Paths are relative to the config file location.
+- `dependencies` (optional): Array of C files to compile with the main file. These are compiled to `.o` files and cached.
+- `includePaths` (optional): Array of include directory paths for header files. Paths are relative to the config file location.
+- `defines` (optional): Array of preprocessor defines to add during compilation.
+
+**Features:**
+- **Incremental Compilation**: Dependency files are cached as `.o` files and only recompiled when changed
+- **File Watching**: All source files (main + dependencies) are watched for changes
+- **Hot Reload**: Any change to any source file triggers recompilation with smart caching
 
 ## Configuration
 
@@ -140,8 +180,10 @@ This approach solves the common problem of Emscripten modules failing to reload 
 
 ## Roadmap
 
-- [ ] Multi-file project support
-- [ ] Custom `lv_conf.h` GUI editor
+- [x] Multi-file project support
+- [x] Dependency caching and incremental compilation
+- [x] Custom preprocessor defines
+- [ ] Custom `lv_conf.h` editor
 
 ## Contributing
 
