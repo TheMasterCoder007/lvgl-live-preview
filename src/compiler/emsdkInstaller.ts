@@ -38,6 +38,32 @@ export class EmsdkInstaller {
 	}
 
 	/**
+	 * @brief Checks if Python is installed and available in the system PATH.
+	 *
+	 * @description
+	 * Emscripten SDK requires Python to install and activate.
+	 * This method checks for Python availability by attempting to run `python --version`.
+	 * It tries both 'python' and 'python3' commands.
+	 *
+	 * @returns {Promise<boolean>} True if Python is installed, false otherwise.
+	 */
+	private async checkPythonInstallation(): Promise<boolean> {
+		const pythonCommands = ['python', 'python3'];
+
+		for (const cmd of pythonCommands) {
+			try {
+				const { stdout } = await exec(`${cmd} --version`);
+				this.outputChannel.appendLine(`Found Python: ${stdout.trim()}`);
+				return true;
+			} catch (error) {
+				// Try the next command
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * @brief Checks if the Emscripten SDK is properly installed and functional.
 	 *
 	 * @description
@@ -85,6 +111,20 @@ export class EmsdkInstaller {
 	 * @throws {Error} If any step of the installation fails.
 	 */
 	public async installEmsdk(): Promise<void> {
+		// Check Python before starting installation
+		const hasPython = await this.checkPythonInstallation();
+		if (!hasPython) {
+			const errorMessage =
+				'Python is required to install Emscripten SDK. Please install Python and add it to your system PATH.';
+			this.outputChannel.appendLine(`ERROR: ${errorMessage}`);
+			vscode.window.showErrorMessage(errorMessage, 'Download Python').then((selection) => {
+				if (selection === 'Download Python') {
+					vscode.env.openExternal(vscode.Uri.parse('https://www.python.org/downloads/'));
+				}
+			});
+			throw new Error(errorMessage);
+		}
+
 		return vscode.window.withProgress(
 			{
 				location: vscode.ProgressLocation.Notification,
@@ -194,6 +234,7 @@ export class EmsdkInstaller {
 
 		this.outputChannel.appendLine(`Running: ${cmd}`);
 
+		let hasPythonError = false;
 		try {
 			const { stdout, stderr } = await exec(cmd, {
 				shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/bash',
@@ -205,6 +246,17 @@ export class EmsdkInstaller {
 			if (stderr) {
 				this.outputChannel.appendLine(`stderr: ${stderr}`);
 			}
+
+			// Check for Python-related errors in the combined output
+			const combinedOutput = `${stdout || ''} ${stderr || ''}`.toLowerCase();
+			if (
+				combinedOutput.includes('python') &&
+				(combinedOutput.includes('not found') ||
+					combinedOutput.includes('command not found') ||
+					combinedOutput.includes('is not recognized'))
+			) {
+				hasPythonError = true;
+			}
 		} catch (error: unknown) {
 			const execError = error as { message: string; stdout?: string; stderr?: string };
 			this.outputChannel.appendLine(`Command failed: ${execError.message}`);
@@ -214,7 +266,24 @@ export class EmsdkInstaller {
 			if (execError.stderr) {
 				this.outputChannel.appendLine(`stderr: ${execError.stderr}`);
 			}
-			throw error;
+
+			// Check for Python-related errors in error output
+			const fullOutput = `${execError.message} ${execError.stdout || ''} ${execError.stderr || ''}`.toLowerCase();
+			if (
+				fullOutput.includes('python') &&
+				(fullOutput.includes('not found') ||
+					fullOutput.includes('command not found') ||
+					fullOutput.includes('is not recognized'))
+			) {
+				hasPythonError = true;
+			} else {
+				throw error;
+			}
+		}
+
+		// Throw Python error
+		if (hasPythonError) {
+			throw new Error('Python is required but not found. Please install Python and add it to your system PATH.');
 		}
 	}
 
