@@ -13,9 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "Download Python" button in the error dialog for quick access to Python downloads
 
 ### Fixed
-- Fixed silent installation failures when Python is not installed
+- Fixed silent installation failures during Emscripten installation
+- Fixed false "installation successful" message when Emscripten SDK installation actually fails
 - Emscripten SDK installation now properly validates Python availability before proceeding
 - Enhanced error detection in emsdk command output to catch Python-related failures
+- Added proper error detection for SSL certificate failures with instructions to fix Python certificates
 
 ## [1.1.0] - 2026-01-08
 

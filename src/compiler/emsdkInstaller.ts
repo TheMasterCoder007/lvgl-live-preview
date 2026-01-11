@@ -235,6 +235,8 @@ export class EmsdkInstaller {
 		this.outputChannel.appendLine(`Running: ${cmd}`);
 
 		let hasPythonError = false;
+		let hasSllCertError = false;
+		let emccInstallationFailed = false;
 		try {
 			const { stdout, stderr } = await exec(cmd, {
 				shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/bash',
@@ -256,6 +258,16 @@ export class EmsdkInstaller {
 					combinedOutput.includes('is not recognized'))
 			) {
 				hasPythonError = true;
+			}
+
+			// Check for SSL certificate errors
+			if (combinedOutput.includes('ssl') && combinedOutput.includes('certificate_verify_failed')) {
+				hasSllCertError = true;
+			}
+
+			// Check for installation failures
+			if (combinedOutput.includes('installation failed') || combinedOutput.includes('error: error:')) {
+				emccInstallationFailed = true;
 			}
 		} catch (error: unknown) {
 			const execError = error as { message: string; stdout?: string; stderr?: string };
@@ -284,6 +296,18 @@ export class EmsdkInstaller {
 		// Throw Python error
 		if (hasPythonError) {
 			throw new Error('Python is required but not found. Please install Python and add it to your system PATH.');
+		}
+
+		// Throw Python SSL Certificate error
+		if (hasSllCertError) {
+			throw new Error(
+				'SSL certificate verification failed. Please fix Python SSL certificates by running: python -m pip install --upgrade certifi'
+			);
+		}
+
+		// Throw emcc installation error
+		if (emccInstallationFailed) {
+			throw new Error('Emscripten SDK installation failed. Check the output above for details.');
 		}
 	}
 
