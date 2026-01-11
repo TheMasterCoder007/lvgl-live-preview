@@ -11,10 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Python detection before Emscripten SDK installation
 - Clear error messages when Python is not installed or not in PATH
 - "Download Python" button in the error dialog for quick access to Python downloads
+- Windows long path support detection with instructions for enabling it when path-too-long errors occur (including WinError 3 detection)
 
 ### Fixed
 - Fixed silent installation failures during Emscripten installation
-- Fixed false "installation successful" message when Emscripten SDK installation actually fails
+- Fixed the false "installation successful" message when Emscripten SDK installation actually fails
 - Emscripten SDK installation now properly validates Python availability before proceeding
 - Enhanced error detection in emsdk command output to catch Python-related failures
 - Added proper error detection for SSL certificate failures with instructions to fix Python certificates

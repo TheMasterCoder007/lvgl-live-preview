@@ -64,6 +64,32 @@ export class EmsdkInstaller {
 	}
 
 	/**
+	 * @brief Checks if Windows long path support is enabled.
+	 *
+	 * @description
+	 * Queries the Windows registry to determine if LongPathsEnabled is set to 1.
+	 * This is only relevant on Windows platforms.
+	 *
+	 * @returns {Promise<boolean>} True if long path support is enabled, false otherwise.
+	 */
+	private async checkLongPathSupport(): Promise<boolean> {
+		// Only check on Windows
+		if (process.platform !== 'win32') {
+			return true; // Non-Windows systems don't have this limitation
+		}
+
+		try {
+			const { stdout } = await exec(
+				'powershell -Command "(Get-ItemProperty \'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\').LongPathsEnabled"'
+			);
+			return stdout.trim() === '1';
+		} catch (error) {
+			// If we can't check, assume it's not enabled
+			return false;
+		}
+	}
+
+	/**
 	 * @brief Checks if the Emscripten SDK is properly installed and functional.
 	 *
 	 * @description
@@ -237,6 +263,7 @@ export class EmsdkInstaller {
 		let hasPythonError = false;
 		let hasSllCertError = false;
 		let emccInstallationFailed = false;
+		let longPathError = false;
 		try {
 			const { stdout, stderr } = await exec(cmd, {
 				shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/bash',
@@ -263,6 +290,18 @@ export class EmsdkInstaller {
 			// Check for SSL certificate errors
 			if (combinedOutput.includes('ssl') && combinedOutput.includes('certificate_verify_failed')) {
 				hasSllCertError = true;
+			}
+
+			// Check for long path errors (including WinError 3 during extraction)
+			if (
+				combinedOutput.includes('path too long') ||
+				combinedOutput.includes('specified path is too long') ||
+				combinedOutput.includes('path is too deep') ||
+				(combinedOutput.includes('[winerror 3]') &&
+					combinedOutput.includes('system cannot find the path specified') &&
+					(combinedOutput.includes('unzip') || combinedOutput.includes('extract')))
+			) {
+				longPathError = true;
 			}
 
 			// Check for installation failures
@@ -308,6 +347,28 @@ export class EmsdkInstaller {
 		// Throw emcc installation error
 		if (emccInstallationFailed) {
 			throw new Error('Emscripten SDK installation failed. Check the output above for details.');
+		}
+
+		// Throw-long path error
+		if (longPathError) {
+			const longPathEnabled = await this.checkLongPathSupport();
+
+			if (!longPathEnabled) {
+				throw new Error(
+					'Installation failed due to long file paths. Please enable Windows long path support:\n\n' +
+						'1. Run PowerShell as Administrator\n' +
+						'2. Execute: New-ItemProperty -Path "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force\n' +
+						'3. Restart your computer\n' +
+						'4. Try the installation again\n\n' +
+						'Alternatively, enable it via Group Policy:\n' +
+						'Computer Configuration > Administrative Templates > System > Filesystem > Enable Win32 long paths'
+				);
+			} else {
+				throw new Error(
+					'Installation failed due to long file paths even though Windows long path support is enabled. ' +
+						'This may be a Node.js limitation. Please try restarting your computer if you recently enabled long path support.'
+				);
+			}
 		}
 	}
 
