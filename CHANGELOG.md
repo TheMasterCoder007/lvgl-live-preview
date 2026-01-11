@@ -5,6 +5,21 @@ All notable changes to the LVGL Live Preview extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Python detection before Emscripten SDK installation
+- Clear error messages when Python is not installed or not in PATH
+- "Download Python" button in the error dialog for quick access to Python downloads
+- Windows long path support detection with instructions for enabling it when path-too-long errors occur (including WinError 3 detection)
+
+### Fixed
+- Fixed silent installation failures during Emscripten installation
+- Fixed the false "installation successful" message when Emscripten SDK installation actually fails
+- Emscripten SDK installation now properly validates Python availability before proceeding
+- Enhanced error detection in emsdk command output to catch Python-related failures
+- Added proper error detection for SSL certificate failures with instructions to fix Python certificates
+
 ## [1.1.0] - 2026-01-08
 
 ### Added
