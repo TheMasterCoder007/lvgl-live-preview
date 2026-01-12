@@ -19,11 +19,7 @@ export class LvDriversConfigGenerator {
 	 * @param displayWidth Horizontal resolution for the SDL window.
 	 * @param displayHeight Vertical resolution for the SDL window.
 	 */
-	public static generateLvDrvConf(
-		outputPath: string,
-		displayWidth: number,
-		displayHeight: number
-	): void {
+	public static generateLvDrvConf(outputPath: string, displayWidth: number, displayHeight: number): void {
 		const config = `
 /**
  * @file lv_drv_conf.h
@@ -104,6 +100,15 @@ export class LvDriversConfigGenerator {
 /*-------------------
  *  SDL
  *-------------------*/
+
+/* Disable HiDPI support to prevent quarter-size rendering on macOS Retina displays.
+ * Without this, SDL_WINDOW_ALLOW_HIGHDPI creates a 2x drawable size but the texture
+ * remains at logical size, causing content to render in the upper-left quarter.
+ * This results in slightly blurry rendering on Retina displays but ensures correct
+ * display size. Windows and Linux are unaffected as they don't use HiDPI by default. */
+#ifndef SDL_HIGHDPI
+# define SDL_HIGHDPI 0
+#endif
 
 /* SDL based drivers for display, mouse, mousewheel and keyboard */
 #ifndef USE_SDL
