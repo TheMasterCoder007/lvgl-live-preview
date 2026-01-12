@@ -124,6 +124,14 @@ export class CompilationManager implements vscode.Disposable {
 			// Get LVGL include path
 			const lvglIncludePath = this.versionManager.getIncludePath(lvglVersion);
 
+			// For LVGL v8, ensure lv_drivers is available and add its include path
+			const majorVersion = parseInt(lvglVersion.split('.')[0], 10);
+			if (majorVersion < 9) {
+				const lvDriversIncludePath = this.versionManager.getLvDriversIncludePath();
+				userIncludePaths.push(lvDriversIncludePath);
+				this.outputChannel.appendLine(`Added lv_drivers include path: ${lvDriversIncludePath}`);
+			}
+
 			// Compile dependencies if any
 			let dependencyObjects: string[] = [];
 			if (dependencies.length > 0 && this.dependencyCache) {
