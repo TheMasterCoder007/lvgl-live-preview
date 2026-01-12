@@ -156,32 +156,20 @@ export class LibraryBuilder {
 				}
 
 				// Compile LVGL source files
-				let objectFiles = await this.emccWrapper.compileToObjects(
+				const objectFiles = await this.emccWrapper.compileToObjects(
 					sourceFiles,
 					objDir,
 					includePaths,
 					optimization
 				);
 
-				// Compile lv_drivers source files for v8
+				// Note: lv_drivers SDL source files are NOT pre-compiled here
+				// They require SDL2 headers which are only available during final linking
+				// when -s USE_SDL=2 triggers Emscripten's SDL2 port download
+				// The SDL driver source files will be compiled in compilationManager.ts during final linking
 				if (lvDriversSourceFiles.length > 0) {
-					progress.report({ message: 'Compiling lv_drivers...' });
-
-					// Add defines for lv_drivers to handle includes properly
-					const lvDriversDefines = [
-						'LV_CONF_INCLUDE_SIMPLE', // Use simple includes without complex paths
-					];
-
-					const driverObjectFiles = await this.emccWrapper.compileToObjects(
-						lvDriversSourceFiles,
-						objDir,
-						includePaths,
-						optimization,
-						lvDriversDefines
-					);
-					objectFiles = objectFiles.concat(driverObjectFiles);
 					this.outputChannel.appendLine(
-						`lv_drivers compiled successfully: ${driverObjectFiles.length} object files`
+						`Found ${lvDriversSourceFiles.length} lv_drivers SDL source files (will compile during final linking)`
 					);
 				}
 
