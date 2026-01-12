@@ -68,7 +68,11 @@ export class LibraryBuilder {
 		const majorVersion = parseInt(version.split('.')[0], 10);
 		const needsLvDrivers = majorVersion < 9;
 		const driversSuffix = needsLvDrivers ? '_with_lvdrivers' : '';
-		const cacheKey = `${version}_${optimization}_${displayWidth}x${displayHeight}${driversSuffix}`;
+
+		// Add build strategy version to cache key to invalidate old caches when compilation changes
+		// v2: SDL drivers compiled during final linking (not pre-compiled)
+		const buildVersion = 'v2';
+		const cacheKey = `${version}_${optimization}_${displayWidth}x${displayHeight}${driversSuffix}_${buildVersion}`;
 		const objDir = path.join(this.cachePath, `obj_${cacheKey}`);
 		const markerFile = path.join(objDir, '.build_complete');
 
