@@ -152,6 +152,7 @@ export class EmccWrapper {
 	 * @param dependencyObjects Array of dependency object file paths (optional).
 	 * @param userIncludePaths Array of user-specified include paths (optional).
 	 * @param defines Array of preprocessor defines (optional).
+	 * @param additionalSourceFiles Array of additional source files to compile alongside main and user files (optional).
 	 * @returns Promise resolving to CompilationResult with success status, output paths, and any errors/warnings.
 	 */
 	public async compileWithObjects(
@@ -162,7 +163,8 @@ export class EmccWrapper {
 		mainFile: string,
 		dependencyObjects: string[] = [],
 		userIncludePaths: string[] = [],
-		defines: string[] = []
+		defines: string[] = [],
+		additionalSourceFiles: string[] = []
 	): Promise<CompilationResult> {
 		const emccPath = this.emsdkInstaller.getEmccPath();
 		const outputName = path.join(outputDir, 'output');
@@ -175,7 +177,7 @@ export class EmccWrapper {
 		const normalizedObjects = allObjects.map((o) => `"${o.replace(/\\/g, '/')}"`);
 		fs.writeFileSync(responseFilePath, normalizedObjects.join('\n'), 'utf-8');
 
-		const fileCount = 2 + (dependencyObjects.length > 0 ? dependencyObjects.length : 0);
+		const fileCount = 2 + (dependencyObjects.length > 0 ? dependencyObjects.length : 0) + additionalSourceFiles.length;
 		this.outputChannel.appendLine(
 			`Fast compilation: ${fileCount} user files + ${objectFiles.length} LVGL objects`
 		);
@@ -209,6 +211,7 @@ export class EmccWrapper {
 			...userIncludePaths.map((p) => `-I${p}`),
 			mainFile,
 			sourceFile,
+			...additionalSourceFiles,
 			`@${responseFilePath}`,
 			'-o',
 			jsPath,

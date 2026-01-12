@@ -156,6 +156,14 @@ export class CompilationManager implements vscode.Disposable {
 				fs.mkdirSync(outputDir, { recursive: true });
 			}
 
+			// For LVGL v9+, add SDL driver source files to be compiled during final linking
+			// These files require SDL2 headers which are only available when USE_SDL=2 triggers the port
+			let additionalSourceFiles: string[] = [];
+			if (majorVersion >= 9) {
+				additionalSourceFiles = this.versionManager.getLvglSdlDriverSourceFiles(lvglVersion);
+				this.outputChannel.appendLine(`Adding ${additionalSourceFiles.length} SDL driver source files for v9+ compilation`);
+			}
+
 			// Compile user file with objects and dependencies
 			const result = await this.emccWrapper.compileWithObjects(
 				mainSourceFile,
@@ -165,7 +173,8 @@ export class CompilationManager implements vscode.Disposable {
 				mainPath,
 				dependencyObjects,
 				userIncludePaths,
-				defines
+				defines,
+				additionalSourceFiles
 			);
 
 			// Update diagnostics

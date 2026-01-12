@@ -52,6 +52,7 @@ export class ConfigGenerator {
 
 #define LV_TICK_CUSTOM 1
 #define LV_TICK_CUSTOM_INCLUDE <SDL2/SDL.h>
+#define LV_TICK_CUSTOM_SYS_TIME_EXPR (SDL_GetTicks())
 #define LV_DPI_DEF 130
 
 /*=================

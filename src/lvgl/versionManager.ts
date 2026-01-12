@@ -131,12 +131,20 @@ export class VersionManager {
 	 * Recursively walks the version's src directory to find all .c files
 	 * needed for compilation.
 	 *
+	 * Excludes certain files that are compiled separately:
+	 * - LVGL v9+: Excludes SDL driver files (src/drivers/sdl/*.c) - compiled during final linking
+	 * - LVGL v8: Excludes lv_hal_tick.c - custom implementation provided in main template
+	 *
 	 * @param {string} version - The LVGL version.
 	 * @returns {string[]} Array of absolute paths to all C source files.
 	 */
 	public getSourceFiles(version: string): string[] {
 		const versionPath = this.getVersionPath(version);
 		const srcPath = path.join(versionPath, 'src');
+
+		// Detect LVGL version to determine which files to exclude
+		const majorVersion = parseInt(version.split('.')[0], 10);
+		const isV9OrLater = majorVersion >= 9;
 
 		const sourceFiles: string[] = [];
 
@@ -155,6 +163,20 @@ export class VersionManager {
 				if (stat.isDirectory()) {
 					walkDir(filePath);
 				} else if (file.endsWith('.c')) {
+					// For LVGL v9+, exclude SDL driver files
+					// These files need SDL2 headers which are only available during final linking
+					if (isV9OrLater && (filePath.includes(path.join('drivers', 'sdl')) || filePath.includes('drivers/sdl'))) {
+						this.outputChannel.appendLine(`Excluding SDL driver from pre-compilation: ${path.basename(filePath)}`);
+						continue;
+					}
+
+					// For LVGL v8, exclude lv_hal_tick.c
+					// The main template provides custom lv_tick_get() and lv_tick_elaps() implementations
+					if (!isV9OrLater && (filePath.includes(path.join('hal', 'lv_hal_tick.c')) || filePath.includes('hal/lv_hal_tick.c'))) {
+						this.outputChannel.appendLine(`Excluding lv_hal_tick.c from pre-compilation (custom implementation in main template)`);
+						continue;
+					}
+
 					sourceFiles.push(filePath);
 				}
 			}
@@ -252,7 +274,7 @@ export class VersionManager {
 	}
 
 	/**
-	 * @brief Gets SDL driver source files from lv_drivers.
+	 * @brief Gets SDL driver source files from lv_drivers (for LVGL v8).
 	 *
 	 * @description
 	 * Returns the paths to SDL driver source files needed for LVGL v8 compilation.
@@ -268,6 +290,29 @@ export class VersionManager {
 		return [
 			path.join(sdlPath, 'sdl.c'),
 			path.join(sdlPath, 'sdl_common.c'),
+		];
+	}
+
+	/**
+	 * @brief Gets built-in SDL driver source files from LVGL v9+.
+	 *
+	 * @description
+	 * Returns the paths to SDL driver source files that are built into LVGL v9+.
+	 * These files require SDL2 headers and must be compiled during the final
+	 * linking phase when Emscripten's SDL2 port is available.
+	 *
+	 * @param {string} version - The LVGL version.
+	 * @returns {string[]} Array of absolute paths to SDL driver source files.
+	 */
+	public getLvglSdlDriverSourceFiles(version: string): string[] {
+		const versionPath = this.getVersionPath(version);
+		const sdlPath = path.join(versionPath, 'src', 'drivers', 'sdl');
+
+		return [
+			path.join(sdlPath, 'lv_sdl_window.c'),
+			path.join(sdlPath, 'lv_sdl_mouse.c'),
+			path.join(sdlPath, 'lv_sdl_mousewheel.c'),
+			path.join(sdlPath, 'lv_sdl_keyboard.c'),
 		];
 	}
 

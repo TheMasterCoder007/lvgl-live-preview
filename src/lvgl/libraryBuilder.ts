@@ -117,11 +117,9 @@ export class LibraryBuilder {
 					const drvConfigPath = path.join(this.cachePath, `lv_drv_conf_${cacheKey}.h`);
 					LvDriversConfigGenerator.generateLvDrvConf(drvConfigPath, displayWidth, displayHeight);
 
-					// Copy lv_drv_conf.h to parent directory of lv_drivers (for ../../ includes from sdl/)
-					// lv_drivers structure: lv_drivers/master/sdl/sdl_common.c tries to #include "../../lv_drv_conf.h"
-					// So we need: lv_drivers/lv_drv_conf.h
-					const lvDriversParentPath = path.dirname(lvDriversPath);
-					const lvDriversConfigPath = path.join(lvDriversParentPath, 'lv_drv_conf.h');
+					// Copy lv_drv_conf.h directly to lv_drivers/master directory
+					// The compiler include path is set to lv_drivers/master, so the file needs to be there
+					const lvDriversConfigPath = path.join(lvDriversPath, 'lv_drv_conf.h');
 					fs.copyFileSync(drvConfigPath, lvDriversConfigPath);
 					this.outputChannel.appendLine(`Copied lv_drv_conf.h to: ${lvDriversConfigPath}`);
 
