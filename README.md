@@ -71,6 +71,7 @@ void lvgl_live_preview_init(void) {
 
 ## Requirements
 
+- **Python**: Python must be installed and available in your system PATH. The extension requires Python to install and configure the Emscripten SDK. [Download Python](https://www.python.org/downloads/)
 - **Required Entry Point**: Your main C file must define a `void lvgl_live_preview_init(void)` function wrapped in `#ifdef LVGL_LIVE_PREVIEW`. This is where you initialize your LVGL UI. The `LVGL_LIVE_PREVIEW` define is automatically provided by the extension during compilation, ensuring the function is only visible when using the live preview feature.
 - **LVGL API**: Use standard LVGL API calls. The extension supports LVGL v8.x and v9.x.
 
@@ -157,6 +158,13 @@ The extension uses **webview recreation** to ensure reliable WASM module reloadi
 This approach solves the common problem of Emscripten modules failing to reload due to persistent global state by letting VS Code handle the cleanup automatically.
 
 ## Troubleshooting
+
+### Python Not Found Error
+If you see "Python is required to install Emscripten SDK":
+- Install Python from [python.org/downloads](https://www.python.org/downloads/)
+- Ensure Python is added to your system PATH during installation
+- Restart VS Code after installing Python
+- Verify installation by running `python --version` or `python3 --version` in a terminal
 
 ### Emscripten Download Fails
 - Check your internet connection

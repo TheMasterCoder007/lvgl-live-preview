@@ -82,6 +82,13 @@ export class PreviewManager implements vscode.Disposable {
 			const debounceDelay = config.get<number>('debounceDelay', 300);
 
 			if (autoReload) {
+				// Dispose existing file watcher if present to prevent duplicates
+				if (this.fileWatcher) {
+					this.outputChannel.appendLine('[PreviewManager] Disposing existing file watcher');
+					this.fileWatcher.dispose();
+					this.fileWatcher = undefined;
+				}
+
 				this.fileWatcher = new FileWatcher(async (uri) => {
 					this.outputChannel.appendLine(`File changed: ${uri.fsPath}`);
 					await this.compileAndUpdate(fileUri, true); // Always use original fileUri for compilation

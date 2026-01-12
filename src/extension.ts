@@ -68,6 +68,12 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
+			// Check if preview is already running
+			if (previewManager?.isRunning()) {
+				vscode.window.showInformationMessage('LVGL Preview is already running. Stop it first to preview a different file.');
+				return;
+			}
+
 			try {
 				// Show output channel
 				outputChannel.show(true);

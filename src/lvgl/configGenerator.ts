@@ -18,6 +18,16 @@ export class ConfigGenerator {
 #include <stdint.h>
 
 /*====================
+   SDL DRIVER (LVGL v9+)
+ *====================*/
+
+/* Enable SDL driver - built into LVGL v9+ */
+#define LV_USE_SDL 1
+#define LV_SDL_INCLUDE_PATH <SDL2/SDL.h>
+#define SDL_HOR_RES ${displayWidth}
+#define SDL_VER_RES ${displayHeight}
+
+/*====================
    COLOR SETTINGS
  *====================*/
 
@@ -40,7 +50,9 @@ export class ConfigGenerator {
    HAL SETTINGS
  *====================*/
 
-#define LV_TICK_CUSTOM 0
+#define LV_TICK_CUSTOM 1
+#define LV_TICK_CUSTOM_INCLUDE <SDL2/SDL.h>
+#define LV_TICK_CUSTOM_SYS_TIME_EXPR (SDL_GetTicks())
 #define LV_DPI_DEF 130
 
 /*=================

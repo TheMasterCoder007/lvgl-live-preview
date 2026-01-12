@@ -124,6 +124,14 @@ export class CompilationManager implements vscode.Disposable {
 			// Get LVGL include path
 			const lvglIncludePath = this.versionManager.getIncludePath(lvglVersion);
 
+			// For LVGL v8, ensure lv_drivers is available and add its include path
+			const majorVersion = parseInt(lvglVersion.split('.')[0], 10);
+			if (majorVersion < 9) {
+				const lvDriversIncludePath = this.versionManager.getLvDriversIncludePath();
+				userIncludePaths.push(lvDriversIncludePath);
+				this.outputChannel.appendLine(`Added lv_drivers include path: ${lvDriversIncludePath}`);
+			}
+
 			// Compile dependencies if any
 			let dependencyObjects: string[] = [];
 			if (dependencies.length > 0 && this.dependencyCache) {
@@ -148,6 +156,24 @@ export class CompilationManager implements vscode.Disposable {
 				fs.mkdirSync(outputDir, { recursive: true });
 			}
 
+			// Add SDL driver source files to be compiled during final linking
+			// These files require SDL2 headers which are only available when USE_SDL=2 triggers the port
+			let additionalSourceFiles: string[] = [];
+			if (majorVersion >= 9) {
+				// LVGL v9+: Use built-in SDL drivers
+				additionalSourceFiles = this.versionManager.getLvglSdlDriverSourceFiles(lvglVersion);
+				this.outputChannel.appendLine(`Adding ${additionalSourceFiles.length} LVGL v9 SDL driver source files for compilation`);
+			} else {
+				// LVGL v8: Use lv_drivers SDL drivers
+				additionalSourceFiles = this.versionManager.getLvDriversSdlSourceFiles();
+				this.outputChannel.appendLine(`Adding ${additionalSourceFiles.length} lv_drivers SDL source files for compilation`);
+
+				// Add LV_CONF_INCLUDE_SIMPLE define for lv_drivers compatibility
+				if (!defines.includes('LV_CONF_INCLUDE_SIMPLE')) {
+					defines.push('LV_CONF_INCLUDE_SIMPLE');
+				}
+			}
+
 			// Compile user file with objects and dependencies
 			const result = await this.emccWrapper.compileWithObjects(
 				mainSourceFile,
@@ -157,7 +183,8 @@ export class CompilationManager implements vscode.Disposable {
 				mainPath,
 				dependencyObjects,
 				userIncludePaths,
-				defines
+				defines,
+				additionalSourceFiles
 			);
 
 			// Update diagnostics

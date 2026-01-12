@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { VersionManager } from './versionManager';
 import { ConfigGenerator } from './configGenerator';
+import { LvDriversConfigGenerator } from './lvDriversConfigGenerator';
 import { EmccWrapper } from '../compiler/emccWrapper';
 
 /**
@@ -63,7 +64,15 @@ export class LibraryBuilder {
 		const displayWidth = config.get<number>('displayWidth', 480);
 		const displayHeight = config.get<number>('displayHeight', 320);
 
-		const cacheKey = `${version}_${optimization}_${displayWidth}x${displayHeight}`;
+		// Detect if lv_drivers is needed (for v8) and add to cache key
+		const majorVersion = parseInt(version.split('.')[0], 10);
+		const needsLvDrivers = majorVersion < 9;
+		const driversSuffix = needsLvDrivers ? '_with_lvdrivers' : '';
+
+		// Add build strategy version to cache key to invalidate old caches when compilation changes
+		// v2: SDL drivers compiled during final linking (not pre-compiled)
+		const buildVersion = 'v2';
+		const cacheKey = `${version}_${optimization}_${displayWidth}x${displayHeight}${driversSuffix}_${buildVersion}`;
 		const objDir = path.join(this.cachePath, `obj_${cacheKey}`);
 		const markerFile = path.join(objDir, '.build_complete');
 
@@ -88,6 +97,10 @@ export class LibraryBuilder {
 				progress.report({ message: 'Downloading LVGL...' });
 				const versionPath = await this.versionManager.ensureVersion(version);
 
+				// Detect LVGL major version to determine if we need lv_drivers
+				const majorVersion = parseInt(version.split('.')[0], 10);
+				const needsLvDrivers = majorVersion < 9;
+
 				// Generate lv_conf.h
 				progress.report({ message: 'Generating configuration...' });
 				const configPath = path.join(this.cachePath, `lv_conf_${cacheKey}.h`);
@@ -97,6 +110,37 @@ export class LibraryBuilder {
 				const lvglConfigPath = path.join(versionPath, 'lv_conf.h');
 				fs.copyFileSync(configPath, lvglConfigPath);
 
+				// For LVGL v8, download and configure lv_drivers
+				let lvDriversPath: string | null = null;
+				let lvDriversSourceFiles: string[] = [];
+				if (needsLvDrivers) {
+					progress.report({ message: 'Downloading lv_drivers...' });
+					lvDriversPath = await this.versionManager.ensureLvDrivers();
+
+					// Generate lv_drv_conf.h
+					const drvConfigPath = path.join(this.cachePath, `lv_drv_conf_${cacheKey}.h`);
+					LvDriversConfigGenerator.generateLvDrvConf(drvConfigPath, displayWidth, displayHeight);
+
+					// Copy lv_drv_conf.h directly to lv_drivers/master directory
+					// The compiler include path is set to lv_drivers/master, so the file needs to be there
+					const lvDriversConfigPath = path.join(lvDriversPath, 'lv_drv_conf.h');
+					fs.copyFileSync(drvConfigPath, lvDriversConfigPath);
+					this.outputChannel.appendLine(`Copied lv_drv_conf.h to: ${lvDriversConfigPath}`);
+
+					// Copy LVGL to lv_drivers/lvgl for include compatibility
+					// lv_drivers expects: #include "lvgl/lvgl.h"
+					const lvglInDriversPath = path.join(lvDriversPath, 'lvgl');
+					if (!fs.existsSync(lvglInDriversPath)) {
+						this.outputChannel.appendLine(`Copying LVGL to lv_drivers for include compatibility...`);
+						fs.cpSync(versionPath, lvglInDriversPath, { recursive: true });
+						this.outputChannel.appendLine(`Copied LVGL to: ${lvglInDriversPath}`);
+					}
+
+					// Get SDL driver source files
+					lvDriversSourceFiles = this.versionManager.getLvDriversSdlSourceFiles();
+					this.outputChannel.appendLine(`Found ${lvDriversSourceFiles.length} lv_drivers SDL source files`);
+				}
+
 				// Create an object directory
 				if (!fs.existsSync(objDir)) {
 					fs.mkdirSync(objDir, { recursive: true });
@@ -105,19 +149,33 @@ export class LibraryBuilder {
 				// Get all LVGL source files
 				progress.report({ message: 'Collecting source files...' });
 				const sourceFiles = this.versionManager.getSourceFiles(version);
-				this.outputChannel.appendLine(`Found ${sourceFiles.length} source files`);
+				this.outputChannel.appendLine(`Found ${sourceFiles.length} LVGL source files`);
 
 				// Compile to object files
 				progress.report({ message: 'Compiling LVGL...' });
 
 				const includePaths = [versionPath, path.join(versionPath, 'src')];
+				if (lvDriversPath) {
+					includePaths.push(lvDriversPath);
+				}
 
+				// Compile LVGL source files
 				const objectFiles = await this.emccWrapper.compileToObjects(
 					sourceFiles,
 					objDir,
 					includePaths,
 					optimization
 				);
+
+				// Note: lv_drivers SDL source files are NOT pre-compiled here
+				// They require SDL2 headers which are only available during final linking
+				// when -s USE_SDL=2 triggers Emscripten's SDL2 port download
+				// The SDL driver source files will be compiled in compilationManager.ts during final linking
+				if (lvDriversSourceFiles.length > 0) {
+					this.outputChannel.appendLine(
+						`Found ${lvDriversSourceFiles.length} lv_drivers SDL source files (will compile during final linking)`
+					);
+				}
 
 				if (objectFiles.length === 0) {
 					throw new Error('Failed to compile LVGL object files');
@@ -126,7 +184,7 @@ export class LibraryBuilder {
 				// Write a marker file to indicate a successful build
 				fs.writeFileSync(markerFile, new Date().toISOString());
 
-				this.outputChannel.appendLine(`LVGL compiled successfully: ${objectFiles.length} object files`);
+				this.outputChannel.appendLine(`Build completed successfully: ${objectFiles.length} total object files`);
 				return objectFiles;
 			}
 		);

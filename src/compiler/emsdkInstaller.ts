@@ -38,6 +38,58 @@ export class EmsdkInstaller {
 	}
 
 	/**
+	 * @brief Checks if Python is installed and available in the system PATH.
+	 *
+	 * @description
+	 * Emscripten SDK requires Python to install and activate.
+	 * This method checks for Python availability by attempting to run `python --version`.
+	 * It tries both 'python' and 'python3' commands.
+	 *
+	 * @returns {Promise<boolean>} True if Python is installed, false otherwise.
+	 */
+	private async checkPythonInstallation(): Promise<boolean> {
+		const pythonCommands = ['python', 'python3'];
+
+		for (const cmd of pythonCommands) {
+			try {
+				const { stdout } = await exec(`${cmd} --version`);
+				this.outputChannel.appendLine(`Found Python: ${stdout.trim()}`);
+				return true;
+			} catch (error) {
+				// Try the next command
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * @brief Checks if Windows long path support is enabled.
+	 *
+	 * @description
+	 * Queries the Windows registry to determine if LongPathsEnabled is set to 1.
+	 * This is only relevant on Windows platforms.
+	 *
+	 * @returns {Promise<boolean>} True if long path support is enabled, false otherwise.
+	 */
+	private async checkLongPathSupport(): Promise<boolean> {
+		// Only check on Windows
+		if (process.platform !== 'win32') {
+			return true; // Non-Windows systems don't have this limitation
+		}
+
+		try {
+			const { stdout } = await exec(
+				'powershell -Command "(Get-ItemProperty \'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\').LongPathsEnabled"'
+			);
+			return stdout.trim() === '1';
+		} catch (error) {
+			// If we can't check, assume it's not enabled
+			return false;
+		}
+	}
+
+	/**
 	 * @brief Checks if the Emscripten SDK is properly installed and functional.
 	 *
 	 * @description
@@ -85,6 +137,20 @@ export class EmsdkInstaller {
 	 * @throws {Error} If any step of the installation fails.
 	 */
 	public async installEmsdk(): Promise<void> {
+		// Check Python before starting installation
+		const hasPython = await this.checkPythonInstallation();
+		if (!hasPython) {
+			const errorMessage =
+				'Python is required to install Emscripten SDK. Please install Python and add it to your system PATH.';
+			this.outputChannel.appendLine(`ERROR: ${errorMessage}`);
+			vscode.window.showErrorMessage(errorMessage, 'Download Python').then((selection) => {
+				if (selection === 'Download Python') {
+					vscode.env.openExternal(vscode.Uri.parse('https://www.python.org/downloads/'));
+				}
+			});
+			throw new Error(errorMessage);
+		}
+
 		return vscode.window.withProgress(
 			{
 				location: vscode.ProgressLocation.Notification,
@@ -194,6 +260,10 @@ export class EmsdkInstaller {
 
 		this.outputChannel.appendLine(`Running: ${cmd}`);
 
+		let hasPythonError = false;
+		let hasSllCertError = false;
+		let emccInstallationFailed = false;
+		let longPathError = false;
 		try {
 			const { stdout, stderr } = await exec(cmd, {
 				shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/bash',
@@ -205,6 +275,39 @@ export class EmsdkInstaller {
 			if (stderr) {
 				this.outputChannel.appendLine(`stderr: ${stderr}`);
 			}
+
+			// Check for Python-related errors in the combined output
+			const combinedOutput = `${stdout || ''} ${stderr || ''}`.toLowerCase();
+			if (
+				combinedOutput.includes('python') &&
+				(combinedOutput.includes('not found') ||
+					combinedOutput.includes('command not found') ||
+					combinedOutput.includes('is not recognized'))
+			) {
+				hasPythonError = true;
+			}
+
+			// Check for SSL certificate errors
+			if (combinedOutput.includes('ssl') && combinedOutput.includes('certificate_verify_failed')) {
+				hasSllCertError = true;
+			}
+
+			// Check for long path errors (including WinError 3 during extraction)
+			if (
+				combinedOutput.includes('path too long') ||
+				combinedOutput.includes('specified path is too long') ||
+				combinedOutput.includes('path is too deep') ||
+				(combinedOutput.includes('[winerror 3]') &&
+					combinedOutput.includes('system cannot find the path specified') &&
+					(combinedOutput.includes('unzip') || combinedOutput.includes('extract')))
+			) {
+				longPathError = true;
+			}
+
+			// Check for installation failures
+			if (combinedOutput.includes('installation failed') || combinedOutput.includes('error: error:')) {
+				emccInstallationFailed = true;
+			}
 		} catch (error: unknown) {
 			const execError = error as { message: string; stdout?: string; stderr?: string };
 			this.outputChannel.appendLine(`Command failed: ${execError.message}`);
@@ -214,7 +317,58 @@ export class EmsdkInstaller {
 			if (execError.stderr) {
 				this.outputChannel.appendLine(`stderr: ${execError.stderr}`);
 			}
-			throw error;
+
+			// Check for Python-related errors in error output
+			const fullOutput = `${execError.message} ${execError.stdout || ''} ${execError.stderr || ''}`.toLowerCase();
+			if (
+				fullOutput.includes('python') &&
+				(fullOutput.includes('not found') ||
+					fullOutput.includes('command not found') ||
+					fullOutput.includes('is not recognized'))
+			) {
+				hasPythonError = true;
+			} else {
+				throw error;
+			}
+		}
+
+		// Throw Python error
+		if (hasPythonError) {
+			throw new Error('Python is required but not found. Please install Python and add it to your system PATH.');
+		}
+
+		// Throw Python SSL Certificate error
+		if (hasSllCertError) {
+			throw new Error(
+				'SSL certificate verification failed. Please fix Python SSL certificates by running: python -m pip install --upgrade certifi'
+			);
+		}
+
+		// Throw emcc installation error
+		if (emccInstallationFailed) {
+			throw new Error('Emscripten SDK installation failed. Check the output above for details.');
+		}
+
+		// Throw-long path error
+		if (longPathError) {
+			const longPathEnabled = await this.checkLongPathSupport();
+
+			if (!longPathEnabled) {
+				throw new Error(
+					'Installation failed due to long file paths. Please enable Windows long path support:\n\n' +
+						'1. Run PowerShell as Administrator\n' +
+						'2. Execute: New-ItemProperty -Path "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force\n' +
+						'3. Restart your computer\n' +
+						'4. Try the installation again\n\n' +
+						'Alternatively, enable it via Group Policy:\n' +
+						'Computer Configuration > Administrative Templates > System > Filesystem > Enable Win32 long paths'
+				);
+			} else {
+				throw new Error(
+					'Installation failed due to long file paths even though Windows long path support is enabled. ' +
+						'This may be a Node.js limitation. Please try restarting your computer if you recently enabled long path support.'
+				);
+			}
 		}
 	}
 
