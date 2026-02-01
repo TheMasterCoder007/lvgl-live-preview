@@ -73,6 +73,35 @@ export class CompilationManager implements vscode.Disposable {
 	public async compileUserFile(fileUri: vscode.Uri): Promise<CompilationResult> {
 		const config = vscode.workspace.getConfiguration('lvglPreview');
 		const lvglVersion = config.get<string>('lvglVersion', '9.2.0');
+		const wasmMemorySize = config.get<number>('wasmMemorySize', 128);
+		const lvglMemorySize = config.get<number>('lvglMemorySize', 256);
+
+		// Validate memory settings
+		const lvglMemoryMB = lvglMemorySize / 1024;
+		const minWasmMemory = Math.ceil(lvglMemoryMB + 32); // LVGL heap + 32MB overhead for stack, display buffers, runtime
+
+		if (wasmMemorySize < minWasmMemory) {
+			const errorMsg = `Memory configuration error: WASM memory (${wasmMemorySize} MB) is too small for LVGL memory (${lvglMemorySize} KB). ` +
+				`Minimum WASM memory required: ${minWasmMemory} MB. ` +
+				`Please increase WASM memory size or decrease LVGL memory size in settings.`;
+			this.outputChannel.appendLine(`ERROR: ${errorMsg}`);
+			vscode.window.showErrorMessage(errorMsg);
+			return {
+				success: false,
+				jsPath: '',
+				wasmPath: '',
+				errors: [
+					{
+						file: '',
+						line: 0,
+						column: 0,
+						message: errorMsg,
+						severity: 'error',
+					},
+				],
+				warnings: [],
+			};
+		}
 
 		this.outputChannel.appendLine(`Starting compilation of ${fileUri.fsPath}`);
 
@@ -174,7 +203,7 @@ export class CompilationManager implements vscode.Disposable {
 				}
 			}
 
-			// Compile user file with objects and dependencies
+			// Compile the user file with objects and dependencies
 			const result = await this.emccWrapper.compileWithObjects(
 				mainSourceFile,
 				outputDir,
@@ -184,7 +213,8 @@ export class CompilationManager implements vscode.Disposable {
 				dependencyObjects,
 				userIncludePaths,
 				defines,
-				additionalSourceFiles
+				additionalSourceFiles,
+				wasmMemorySize
 			);
 
 			// Update diagnostics
