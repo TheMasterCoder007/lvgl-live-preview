@@ -150,27 +150,27 @@
 					"enum": [64, 128, 256, 512, 1024, 2048],
 					"default": 256,
 					"enumDescriptions": [
-						"64 KB - Minimal (may be too small for most applications)",
-						"128 KB - Small applications with simple UIs",
-						"256 KB - Default (recommended for most applications)",
-						"512 KB - Medium applications with complex UIs",
+						"64 KB - Minimal (may be too small for most applications, requires WASM memory ≥ 64 MB)",
+						"128 KB - Small applications with simple UIs (requires WASM memory ≥ 64 MB)",
+						"256 KB - Default (recommended for most applications, requires WASM memory ≥ 64 MB)",
+						"512 KB - Medium applications with complex UIs (requires WASM memory ≥ 64 MB)",
 						"1024 KB (1 MB) - Large applications with many widgets (requires WASM memory ≥ 128 MB)",
-						"2048 KB (2 MB) - Very large applications or high widget counts (requires WASM memory ≥ 128 MB)"
+						"2048 KB (2 MB) - Very large applications or high widget counts (requires WASM memory ≥ 256 MB)"
 					],
-					"description": "LVGL internal heap memory size (LV_MEM_SIZE). Used for widgets, styles, and buffers. Increase if you see 'Out of memory' errors. Note: WASM memory must be larger than LVGL memory."
+					"description": "LVGL internal heap memory size (LV_MEM_SIZE). Used for widgets, styles, and buffers. Increase if you see 'Out of memory' errors."
 				},
 				"lvglPreview.wasmMemorySize": {
 					"type": "number",
 					"enum": [64, 128, 256, 512, 1024],
 					"default": 128,
 					"enumDescriptions": [
-						"64 MB - Minimal (suitable for LVGL memory ≤ 256 KB)",
-						"128 MB - Default (suitable for LVGL memory ≤ 2 MB)",
-						"256 MB - Large applications or high-resolution displays",
+						"64 MB - Minimal (suitable for LVGL memory ≤ 512 KB)",
+						"128 MB - Default (suitable for LVGL memory ≤ 1 MB)",
+						"256 MB - Large applications (suitable for LVGL memory ≤ 2 MB or high-resolution displays)",
 						"512 MB - Very large applications with high memory usage",
 						"1024 MB (1 GB) - Maximum for extremely large applications"
 					],
-					"description": "WebAssembly total memory size (INITIAL_MEMORY). Includes LVGL heap, stack, display buffers, and runtime overhead. Must be larger than LVGL memory size."
+					"description": "WebAssembly total memory size (INITIAL_MEMORY). Includes LVGL heap, stack, display buffers, and runtime overhead."
 				}
 			}
 		}
