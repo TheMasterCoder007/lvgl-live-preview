@@ -12,6 +12,20 @@ interface CachedDependency {
 	objectPath: string;
 	sourceHash: string;
 	lastModified: number;
+	settingsHash?: string; // Optional for backward compatibility
+}
+
+/**
+ * @interface CompilationSettings
+ * @brief Represents settings that affect compilation
+ */
+export interface CompilationSettings {
+	lvglVersion: string;
+	optimization: string;
+	lvglMemorySize: number;
+	wasmMemorySize: number;
+	includePaths: string[];
+	defines: string[];
 }
 
 /**
@@ -27,6 +41,7 @@ export class DependencyCache {
 	private readonly metadataPath: string;
 	private cache: Map<string, CachedDependency>;
 	private outputChannel: vscode.OutputChannel;
+	private readonly currentSettingsHash: string;
 
 	/**
 	 * @constructor
@@ -35,12 +50,19 @@ export class DependencyCache {
 	 * @param context Extension context for accessing global storage
 	 * @param projectId Unique identifier for the project (e.g., hash of a config file path)
 	 * @param outputChannel Output channel for logging
+	 * @param settings Compilation settings that affect object file compatibility
 	 */
-	constructor(context: vscode.ExtensionContext, projectId: string, outputChannel: vscode.OutputChannel) {
+	constructor(
+		context: vscode.ExtensionContext,
+		projectId: string,
+		outputChannel: vscode.OutputChannel,
+		settings: CompilationSettings
+	) {
 		this.outputChannel = outputChannel;
 		this.cacheDir = path.join(context.globalStorageUri.fsPath, 'dependency-cache', projectId);
 		this.metadataPath = path.join(this.cacheDir, 'metadata.json');
 		this.cache = new Map();
+		this.currentSettingsHash = this.computeSettingsHash(settings);
 
 		// Ensure the cache directory exists
 		if (!fs.existsSync(this.cacheDir)) {
@@ -95,12 +117,33 @@ export class DependencyCache {
 	}
 
 	/**
+	 * @brief Computes a hash of compilation settings.
+	 *
+	 * @param settings Compilation settings
+	 * @returns Hex-encoded hash string
+	 */
+	private computeSettingsHash(settings: CompilationSettings): string {
+		// Sort arrays for consistent hashing
+		const normalized = {
+			lvglVersion: settings.lvglVersion,
+			optimization: settings.optimization,
+			lvglMemorySize: settings.lvglMemorySize,
+			wasmMemorySize: settings.wasmMemorySize,
+			includePaths: [...settings.includePaths].sort(),
+			defines: [...settings.defines].sort(),
+		};
+		const settingsString = JSON.stringify(normalized);
+		return crypto.createHash('sha256').update(settingsString).digest('hex').substring(0, 16);
+	}
+
+	/**
 	 * @brief Checks if a cached object file is still valid.
 	 *
 	 * Validates that:
 	 * - The object file exists
 	 * - The source file hasn't been modified
 	 * - The source file hash matches
+	 * - The compilation settings haven't changed
 	 *
 	 * @param sourcePath Path to the source C file
 	 * @returns true if cache is valid, false if recompilation is needed
@@ -108,6 +151,14 @@ export class DependencyCache {
 	public isCacheValid(sourcePath: string): boolean {
 		const cached = this.cache.get(sourcePath);
 		if (!cached) {
+			return false;
+		}
+
+		// Check if compilation settings changed
+		if (cached.settingsHash && cached.settingsHash !== this.currentSettingsHash) {
+			this.outputChannel.appendLine(
+				`Cache miss: ${path.basename(sourcePath)} - compilation settings changed`
+			);
 			return false;
 		}
 
@@ -170,6 +221,7 @@ export class DependencyCache {
 			objectPath,
 			sourceHash: hash,
 			lastModified: stat.mtimeMs,
+			settingsHash: this.currentSettingsHash,
 		};
 
 		this.cache.set(sourcePath, entry);

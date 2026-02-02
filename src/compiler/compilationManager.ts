@@ -8,7 +8,7 @@ import { VersionManager } from '../lvgl/versionManager';
 import { MainTemplate } from '../lvgl/mainTemplate';
 import { IntellisenseHelper } from '../utils/intellisenseHelper';
 import { CompilationResult, ResolvedProjectConfig } from '../types';
-import { DependencyCache } from '../cache/dependencyCache';
+import { DependencyCache, CompilationSettings } from '../cache/dependencyCache';
 import { ConfigLoader } from '../utils/configLoader';
 
 /**
@@ -128,9 +128,22 @@ export class CompilationManager implements vscode.Disposable {
 				this.outputChannel.appendLine(`  Include paths: ${userIncludePaths.length} directories`);
 				this.outputChannel.appendLine(`  Defines: ${defines.join(', ')}`);
 
-				// Initialize dependency cache
+				// Initialize the dependency cache with settings
 				const projectId = this.getProjectId(projectConfig.configFileDir);
-				this.dependencyCache = new DependencyCache(this.context, projectId, this.outputChannel);
+				const compilationSettings: CompilationSettings = {
+					lvglVersion,
+					optimization: config.get<string>('emccOptimization', '-O1'),
+					lvglMemorySize,
+					wasmMemorySize,
+					includePaths: userIncludePaths,
+					defines,
+				};
+				this.dependencyCache = new DependencyCache(
+					this.context,
+					projectId,
+					this.outputChannel,
+					compilationSettings
+				);
 			} else {
 				// Single file mode
 				mainSourceFile = fileUri.fsPath;
