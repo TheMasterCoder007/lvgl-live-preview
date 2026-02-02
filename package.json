@@ -147,7 +147,14 @@
 				},
 				"lvglPreview.lvglMemorySize": {
 					"type": "number",
-					"enum": [64, 128, 256, 512, 1024, 2048],
+					"enum": [
+						64,
+						128,
+						256,
+						512,
+						1024,
+						2048
+					],
 					"default": 256,
 					"enumDescriptions": [
 						"64 KB - Minimal (may be too small for most applications, requires WASM memory ≥ 64 MB)",
@@ -161,7 +168,13 @@
 				},
 				"lvglPreview.wasmMemorySize": {
 					"type": "number",
-					"enum": [64, 128, 256, 512, 1024],
+					"enum": [
+						64,
+						128,
+						256,
+						512,
+						1024
+					],
 					"default": 128,
 					"enumDescriptions": [
 						"64 MB - Minimal (suitable for LVGL memory ≤ 512 KB)",
@@ -190,13 +203,13 @@
 		"@types/adm-zip": "^0.5.7",
 		"@types/node": "^20.11.0",
 		"@types/vscode": "^1.85.0",
-		"@typescript-eslint/eslint-plugin": "^6.19.0",
-		"@typescript-eslint/parser": "^6.19.0",
+		"@typescript-eslint/eslint-plugin": "^8.54.0",
+		"@typescript-eslint/parser": "^8.54.0",
 		"@vscode/test-electron": "^2.3.8",
 		"@vscode/vsce": "^2.22.0",
 		"eslint": "9.26.0",
-		"typescript": "^5.3.3",
-		"prettier": "^3.7.4"
+		"prettier": "^3.7.4",
+		"typescript": "^5.3.3"
 	},
 	"dependencies": {
 		"adm-zip": "^0.5.10"
