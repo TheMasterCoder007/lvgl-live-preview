@@ -144,6 +144,46 @@
 					"type": "number",
 					"default": 100,
 					"description": "Delay in milliseconds before recompiling after file changes"
+				},
+				"lvglPreview.lvglMemorySize": {
+					"type": "number",
+					"enum": [
+						64,
+						128,
+						256,
+						512,
+						1024,
+						2048
+					],
+					"default": 256,
+					"enumDescriptions": [
+						"64 KB - Minimal (may be too small for most applications, requires WASM memory ≥ 64 MB)",
+						"128 KB - Small applications with simple UIs (requires WASM memory ≥ 64 MB)",
+						"256 KB - Default (recommended for most applications, requires WASM memory ≥ 64 MB)",
+						"512 KB - Medium applications with complex UIs (requires WASM memory ≥ 64 MB)",
+						"1024 KB (1 MB) - Large applications with many widgets (requires WASM memory ≥ 128 MB)",
+						"2048 KB (2 MB) - Very large applications or high widget counts (requires WASM memory ≥ 256 MB)"
+					],
+					"description": "LVGL internal heap memory size (LV_MEM_SIZE). Used for widgets, styles, and buffers. Increase if you see 'Out of memory' errors."
+				},
+				"lvglPreview.wasmMemorySize": {
+					"type": "number",
+					"enum": [
+						64,
+						128,
+						256,
+						512,
+						1024
+					],
+					"default": 128,
+					"enumDescriptions": [
+						"64 MB - Minimal (suitable for LVGL memory ≤ 512 KB)",
+						"128 MB - Default (suitable for LVGL memory ≤ 1 MB)",
+						"256 MB - Large applications (suitable for LVGL memory ≤ 2 MB or high-resolution displays)",
+						"512 MB - Very large applications with high memory usage",
+						"1024 MB (1 GB) - Maximum for extremely large applications"
+					],
+					"description": "WebAssembly total memory size (INITIAL_MEMORY). Includes LVGL heap, stack, display buffers, and runtime overhead."
 				}
 			}
 		}
@@ -163,13 +203,13 @@
 		"@types/adm-zip": "^0.5.7",
 		"@types/node": "^20.11.0",
 		"@types/vscode": "^1.85.0",
-		"@typescript-eslint/eslint-plugin": "^6.19.0",
-		"@typescript-eslint/parser": "^6.19.0",
+		"@typescript-eslint/eslint-plugin": "^8.54.0",
+		"@typescript-eslint/parser": "^8.54.0",
 		"@vscode/test-electron": "^2.3.8",
 		"@vscode/vsce": "^2.22.0",
-		"eslint": "^8.56.0",
-		"typescript": "^5.3.3",
-		"prettier": "^3.7.4"
+		"eslint": "9.26.0",
+		"prettier": "^3.7.4",
+		"typescript": "^5.3.3"
 	},
 	"dependencies": {
 		"adm-zip": "^0.5.10"

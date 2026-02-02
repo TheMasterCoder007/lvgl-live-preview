@@ -63,16 +63,18 @@ export class LibraryBuilder {
 		const optimization = config.get<string>('emccOptimization', '-O2');
 		const displayWidth = config.get<number>('displayWidth', 480);
 		const displayHeight = config.get<number>('displayHeight', 320);
+		const lvglMemorySize = config.get<number>('lvglMemorySize', 256);
 
-		// Detect if lv_drivers is needed (for v8) and add to cache key
+		// Detect if lv_drivers are needed (for v8) and add to the cache key
 		const majorVersion = parseInt(version.split('.')[0], 10);
 		const needsLvDrivers = majorVersion < 9;
 		const driversSuffix = needsLvDrivers ? '_with_lvdrivers' : '';
 
-		// Add build strategy version to cache key to invalidate old caches when compilation changes
+		// Add a build strategy version to the cache key to invalidate old caches when compilation changes
 		// v2: SDL drivers compiled during final linking (not pre-compiled)
-		const buildVersion = 'v2';
-		const cacheKey = `${version}_${optimization}_${displayWidth}x${displayHeight}${driversSuffix}_${buildVersion}`;
+		// v3: Added lvglMemorySize to the cache key
+		const buildVersion = 'v3';
+		const cacheKey = `${version}_${optimization}_${displayWidth}x${displayHeight}_mem${lvglMemorySize}${driversSuffix}_${buildVersion}`;
 		const objDir = path.join(this.cachePath, `obj_${cacheKey}`);
 		const markerFile = path.join(objDir, '.build_complete');
 
@@ -104,7 +106,7 @@ export class LibraryBuilder {
 				// Generate lv_conf.h
 				progress.report({ message: 'Generating configuration...' });
 				const configPath = path.join(this.cachePath, `lv_conf_${cacheKey}.h`);
-				ConfigGenerator.generateLvConf(configPath, displayWidth, displayHeight);
+				ConfigGenerator.generateLvConf(configPath, displayWidth, displayHeight, lvglMemorySize);
 
 				// Copy lv_conf.h to LVGL directory
 				const lvglConfigPath = path.join(versionPath, 'lv_conf.h');

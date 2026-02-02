@@ -153,6 +153,7 @@ export class EmccWrapper {
 	 * @param userIncludePaths Array of user-specified include paths (optional).
 	 * @param defines Array of preprocessor defines (optional).
 	 * @param additionalSourceFiles Array of additional source files to compile alongside main and user files (optional).
+	 * @param wasmMemoryMB Memory size in MB for the generated WebAssembly module (default: 128).
 	 * @returns Promise resolving to CompilationResult with success status, output paths, and any errors/warnings.
 	 */
 	public async compileWithObjects(
@@ -164,7 +165,8 @@ export class EmccWrapper {
 		dependencyObjects: string[] = [],
 		userIncludePaths: string[] = [],
 		defines: string[] = [],
-		additionalSourceFiles: string[] = []
+		additionalSourceFiles: string[] = [],
+		wasmMemoryMB: number = 128
 	): Promise<CompilationResult> {
 		const emccPath = this.emsdkInstaller.getEmccPath();
 		const outputName = path.join(outputDir, 'output');
@@ -181,6 +183,9 @@ export class EmccWrapper {
 		this.outputChannel.appendLine(
 			`Fast compilation: ${fileCount} user files + ${objectFiles.length} LVGL objects`
 		);
+
+		// Stack size configuration
+		const STACK_SIZE_MB = 5;
 
 		// Use -O0 for linking to maximize speed (objects are already optimized)
 		// Use --no-entry-point and other flags to speed up linking
@@ -199,9 +204,9 @@ export class EmccWrapper {
 			'-s',
 			'EXPORTED_RUNTIME_METHODS=["ccall","cwrap"]',
 			'-s',
-			'INITIAL_MEMORY=67108864',
+			`INITIAL_MEMORY=${wasmMemoryMB * 1024 * 1024}`,
 			'-s',
-			'STACK_SIZE=5242880',
+			`STACK_SIZE=${STACK_SIZE_MB * 1024 * 1024}`,
 			'-s',
 			'ASSERTIONS=0', // Disable assertions for speed
 			'-s',

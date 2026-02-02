@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as child_process from 'child_process';
 import * as util from 'util';
-import AdmZip = require('adm-zip');
+import AdmZip from 'adm-zip';
 import { downloadFile } from '../utils/downloadHelper';
 
 const exec = util.promisify(child_process.exec);
@@ -55,7 +55,7 @@ export class EmsdkInstaller {
 				const { stdout } = await exec(`${cmd} --version`);
 				this.outputChannel.appendLine(`Found Python: ${stdout.trim()}`);
 				return true;
-			} catch (error) {
+			} catch {
 				// Try the next command
 			}
 		}
@@ -83,7 +83,7 @@ export class EmsdkInstaller {
 				'powershell -Command "(Get-ItemProperty \'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\').LongPathsEnabled"'
 			);
 			return stdout.trim() === '1';
-		} catch (error) {
+		} catch {
 			// If we can't check, assume it's not enabled
 			return false;
 		}

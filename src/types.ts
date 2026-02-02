@@ -28,6 +28,8 @@ export interface PreviewSettings {
 	displayHeight: number;
 	autoReload: boolean;
 	debounceDelay: number;
+	lvglMemorySize: number;
+	wasmMemorySize: number;
 }
 
 export type ExtensionMessage =

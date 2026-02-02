@@ -5,6 +5,17 @@ All notable changes to the LVGL Live Preview extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-02-01
+
+### Fixed
+- Fixed the issue where large LVGL apps would crash due to running out of allocated memory
+
+### Added
+- Added settings to configure LVGL and WASM memory allocation
+
+### Updated
+- Updated eslint dependencies and supporting configuration files to fix security vulnerabilities
+
 ## [1.1.1] - 2026-01-11
 
 ### Added

@@ -5,7 +5,7 @@ import * as fs from 'fs';
  * @brief Utility class for generating LVGL configuration files.
  */
 export class ConfigGenerator {
-	public static generateLvConf(outputPath: string, displayWidth: number, displayHeight: number): void {
+	public static generateLvConf(outputPath: string, displayWidth: number, displayHeight: number, lvglMemoryKB: number = 256): void {
 		const config = `
 /**
  * @file lv_conf.h
@@ -42,7 +42,7 @@ export class ConfigGenerator {
  *=========================*/
 
 #define LV_MEM_CUSTOM 0
-#define LV_MEM_SIZE (64U * 1024U)
+#define LV_MEM_SIZE (${lvglMemoryKB}U * 1024U)
 #define LV_MEM_ADR 0
 #define LV_MEM_BUF_MAX_NUM 16
 
