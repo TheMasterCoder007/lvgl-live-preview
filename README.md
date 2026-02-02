@@ -125,6 +125,8 @@ Access settings via `File > Preferences > Settings` and search for "LVGL Preview
 | `lvglPreview.emccOptimization` | `-O1`   | Emscripten optimization level (-O0, -O1, -O2, -O3, -Os, -Oz) |
 | `lvglPreview.autoReload` | `true`  | Automatically reload preview on file changes |
 | `lvglPreview.debounceDelay` | `100`   | Delay in ms before recompiling after file changes |
+| `lvglPreview.lvglMemorySize` | `256`   | LVGL internal heap memory size in KB (64, 128, 256, 512, 1024, 2048) |
+| `lvglPreview.wasmMemorySize` | `128`   | WebAssembly total memory size in MB (64, 128, 256, 512, 1024) |
 
 ## Commands
 
