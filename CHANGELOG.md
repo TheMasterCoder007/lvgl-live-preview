@@ -5,6 +5,19 @@ All notable changes to the LVGL Live Preview extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Added an in-preview settings panel: a gear button in the top-right corner of the preview window opens a panel for editing all settings without leaving the preview
+- Added a save button so settings changes are applied only when saved; closing the panel without saving discards edits and keeps the previous settings
+
+### Changed
+- Settings edited in the preview panel persist to the same VS Code configuration, so the panel and the native VS Code settings UI stay in sync
+- The preview now rebuilds/reloads only when saved settings actually change; multiple settings changed in a single save are coalesced into one rebuild
+
+### Fixed
+- Fixed `lvglMemorySize` and `wasmMemorySize` changes not triggering a rebuild of the running preview
+
 ## [1.1.2] - 2026-02-01
 
 ### Fixed

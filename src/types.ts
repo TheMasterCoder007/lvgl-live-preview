@@ -32,14 +32,28 @@ export interface PreviewSettings {
 	wasmMemorySize: number;
 }
 
+/**
+ * Selectable option lists used to build the in-webview settings panel dropdowns.
+ */
+export interface SettingsOptions {
+	lvglVersions: string[];
+	optimizations: string[];
+	lvglMemorySizes: number[];
+	wasmMemorySizes: number[];
+}
+
 export type ExtensionMessage =
 	| { type: 'loadWasm'; wasmBase64: string; jsContent: string }
 	| { type: 'showError'; message: string; errors?: CompilerError[] }
-	| { type: 'updateSettings'; settings: PreviewSettings }
+	| { type: 'updateSettings'; settings: PreviewSettings; options: SettingsOptions }
 	| { type: 'compiling' }
 	| { type: 'ready' };
 
-export type WebviewMessage = { type: 'ready' } | { type: 'error'; message: string } | { type: 'reload' };
+export type WebviewMessage =
+	| { type: 'ready' }
+	| { type: 'error'; message: string }
+	| { type: 'reload' }
+	| { type: 'saveSettings'; settings: PreviewSettings };
 
 export type PreviewStatus = 'idle' | 'initializing' | 'compiling' | 'running' | 'error';
 

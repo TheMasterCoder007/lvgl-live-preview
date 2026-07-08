@@ -14,6 +14,7 @@ LVGL Live Preview is a Visual Studio Code extension that provides real-time prev
 - 🔄 **Hot Reload**: Automatic recompilation and refresh on file save with full WASM module reloading
 - 🎨 **Interactive**: Full mouse/touch input support
 - ⚙️ **Configurable**: Customize display size, LVGL version, and compiler optimization
+- 🛠️ **In-Preview Settings**: Adjust all settings from a settings panel in the preview window — changes apply only when you click **Save**
 - 📦 **Zero Setup**: Emscripten SDK is downloaded and installed automatically
 - 🎯 **Single or Multi-File**: Works with single C files or multi-file projects with dependencies
 - 📁 **Dependency Management**: Configure dependencies via `.lvgl-live-preview.json` with incremental compilation
@@ -115,7 +116,10 @@ For projects with multiple C files, create a `.lvgl-live-preview.json` file at y
 
 ## Configuration
 
-Access settings via `File > Preferences > Settings` and search for "LVGL Preview":
+Settings can be adjusted in two ways, and both read from and write to the same place, so they stay in sync:
+
+- **From the preview window (recommended):** Click the ⚙ gear button in the top-right corner of the preview to open the settings panel. Edit any value and click **Save** to apply. Changes are **only** applied when you click Save — closing the panel (via Cancel, the ✕, `Esc`, or clicking outside it) discards your edits and leaves the current settings untouched. The preview rebuilds and reloads only when saved settings actually change.
+- **From VS Code settings:** Open `File > Preferences > Settings` and search for "LVGL Preview".
 
 | Setting | Default | Description |
 |---------|---------|-------------|

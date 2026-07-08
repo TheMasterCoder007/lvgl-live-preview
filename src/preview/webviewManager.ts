@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
-import { ExtensionMessage, WebviewMessage } from '../types';
+import { ExtensionMessage, PreviewSettings, WebviewMessage } from '../types';
 import { HtmlTemplate } from './htmlTemplate';
+import { SettingsManager } from '../utils/settingsManager';
 
 /**
  * @class WebviewManager
@@ -16,6 +17,7 @@ export class WebviewManager implements vscode.Disposable {
 	private panel: vscode.WebviewPanel | undefined;
 	private outputChannel: vscode.OutputChannel;
 	private onReloadCallback?: () => void | Promise<void>;
+	private onSaveSettingsCallback?: (settings: PreviewSettings) => void | Promise<void>;
 
 	/**
 	 * @constructor
@@ -24,14 +26,17 @@ export class WebviewManager implements vscode.Disposable {
 	 * @param context - The VS Code extension context
 	 * @param outputChannel - Output channel for logging
 	 * @param onReload - Optional callback invoked when reload button is clicked in webview
+	 * @param onSaveSettings - Optional callback invoked when settings are saved in the webview panel
 	 */
 	constructor(
 		private context: vscode.ExtensionContext,
 		outputChannel: vscode.OutputChannel,
-		onReload?: () => void | Promise<void>
+		onReload?: () => void | Promise<void>,
+		onSaveSettings?: (settings: PreviewSettings) => void | Promise<void>
 	) {
 		this.outputChannel = outputChannel;
 		this.onReloadCallback = onReload;
+		this.onSaveSettingsCallback = onSaveSettings;
 	}
 
 	/**
@@ -136,6 +141,8 @@ export class WebviewManager implements vscode.Disposable {
 		switch (message.type) {
 			case 'ready':
 				this.outputChannel.appendLine('Webview ready');
+				// Send the current settings so the in-webview settings panel is populated.
+				this.sendSettings();
 				break;
 			case 'error':
 				this.outputChannel.appendLine(`Webview error: ${message.message}`);
@@ -147,7 +154,27 @@ export class WebviewManager implements vscode.Disposable {
 					void Promise.resolve(this.onReloadCallback());
 				}
 				break;
+			case 'saveSettings':
+				this.outputChannel.appendLine('Webview requesting settings save');
+				if (this.onSaveSettingsCallback) {
+					void Promise.resolve(this.onSaveSettingsCallback(message.settings));
+				}
+				break;
 		}
+	}
+
+	/**
+	 * @brief Sends the current settings and selectable options to the webview.
+	 *
+	 * Used to populate the in-webview settings panel, both on initial load and after
+	 * settings change (e.g., edited via the native VS Code settings UI).
+	 */
+	public sendSettings(): void {
+		this.sendMessage({
+			type: 'updateSettings',
+			settings: SettingsManager.getSettings(),
+			options: SettingsManager.OPTIONS,
+		});
 	}
 
 	/**

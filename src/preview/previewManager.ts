@@ -4,6 +4,8 @@ import * as fs from 'fs';
 import { CompilationManager } from '../compiler/compilationManager';
 import { FileWatcher } from '../watcher/fileWatcher';
 import { WebviewManager } from './webviewManager';
+import { SettingsManager } from '../utils/settingsManager';
+import { PreviewSettings } from '../types';
 
 /**
  * @class PreviewManager
@@ -62,9 +64,16 @@ export class PreviewManager implements vscode.Disposable {
 			// Create a webview if it does not exist
 			if (!this.webviewManager) {
 				this.outputChannel.appendLine('[PreviewManager] Creating webview manager...');
-				this.webviewManager = new WebviewManager(this.context, this.outputChannel, async () => {
-					await this.rebuild();
-				});
+				this.webviewManager = new WebviewManager(
+					this.context,
+					this.outputChannel,
+					async () => {
+						await this.rebuild();
+					},
+					async (settings) => {
+						await this.saveSettings(settings);
+					}
+				);
 			}
 
 			// Show webview
@@ -224,6 +233,37 @@ export class PreviewManager implements vscode.Disposable {
 		if (this.currentFile) {
 			await this.compileAndUpdate(this.currentFile, true);
 		}
+	}
+
+	/**
+	 * @brief Persists settings selected in the in-webview settings panel.
+	 *
+	 * Settings are written to VS Code configuration. The resulting configuration
+	 * change is handled centrally (debounced) in extension.ts, which decides whether
+	 * a rebuild or watcher restart is required. If nothing actually changed, the
+	 * current settings are re-sent so the panel reflects the persisted state.
+	 *
+	 * @param settings - The settings selected in the webview panel.
+	 */
+	public async saveSettings(settings: PreviewSettings): Promise<void> {
+		const changed = await SettingsManager.saveSettings(settings);
+		this.outputChannel.appendLine(
+			`[PreviewManager] Settings saved from webview (changed: ${changed})`
+		);
+		if (!changed) {
+			this.refreshSettings();
+		}
+	}
+
+	/**
+	 * @brief Re-sends the current settings to the webview settings panel.
+	 *
+	 * Keeps the panel in sync when settings change without recreating the webview
+	 * (e.g., edited via the native VS Code settings UI, or a save that only affects
+	 * the file watcher).
+	 */
+	public refreshSettings(): void {
+		this.webviewManager?.sendSettings();
 	}
 
 	/**
