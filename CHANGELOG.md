@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed `lvglMemorySize` and `wasmMemorySize` changes not triggering a rebuild of the running preview
 
+### Security
+- Updated dependencies of the project to resolve security vulnerabilities as reported by npm audit
+
 ## [1.1.2] - 2026-02-01
 
 ### Fixed

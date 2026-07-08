@@ -206,8 +206,8 @@
 		"@typescript-eslint/eslint-plugin": "^8.54.0",
 		"@typescript-eslint/parser": "^8.54.0",
 		"@vscode/test-electron": "^2.3.8",
-		"@vscode/vsce": "^2.22.0",
-		"eslint": "9.26.0",
+		"@vscode/vsce": "^3.9.2",
+		"eslint": "^9.39.4",
 		"prettier": "^3.7.4",
 		"typescript": "^5.3.3"
 	},
