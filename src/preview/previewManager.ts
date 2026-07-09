@@ -25,6 +25,7 @@ export class PreviewManager implements vscode.Disposable {
 	private fileWatcher: FileWatcher | undefined;
 	private compilationManager: CompilationManager;
 	private readonly outputChannel: vscode.OutputChannel;
+	private readonly logChannel: vscode.OutputChannel;
 	private currentFile: vscode.Uri | undefined;
 
 	/**
@@ -33,15 +34,18 @@ export class PreviewManager implements vscode.Disposable {
 	 *
 	 * @param context - The VS Code extension context
 	 * @param compilationManager - Manager for handling LVGL compilation
-	 * @param outputChannel - Output channel for logging
+	 * @param outputChannel - Output channel for extension/build logging
+	 * @param logChannel - Output channel for the previewed app's runtime output
 	 */
 	constructor(
 		private context: vscode.ExtensionContext,
 		compilationManager: CompilationManager,
-		outputChannel: vscode.OutputChannel
+		outputChannel: vscode.OutputChannel,
+		logChannel: vscode.OutputChannel
 	) {
 		this.compilationManager = compilationManager;
 		this.outputChannel = outputChannel;
+		this.logChannel = logChannel;
 	}
 
 	/**
@@ -67,6 +71,7 @@ export class PreviewManager implements vscode.Disposable {
 				this.webviewManager = new WebviewManager(
 					this.context,
 					this.outputChannel,
+					this.logChannel,
 					async () => {
 						await this.rebuild();
 					},

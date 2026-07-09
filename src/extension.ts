@@ -38,6 +38,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	outputChannel = vscode.window.createOutputChannel('LVGL Preview');
 	context.subscriptions.push(outputChannel);
 
+	// Separate channel for the previewed app's own runtime output (printf / LV_LOG_*),
+	// kept apart from the extension/build logs above.
+	const logChannel = vscode.window.createOutputChannel('LVGL Runtime');
+	context.subscriptions.push(logChannel);
+
 	outputChannel.appendLine('LVGL Live Preview extension activated');
 
 	// Initialize managers
@@ -45,7 +50,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(statusBarManager);
 
 	compilationManager = new CompilationManager(context, outputChannel);
-	previewManager = new PreviewManager(context, compilationManager, outputChannel);
+	previewManager = new PreviewManager(context, compilationManager, outputChannel, logChannel);
 
 	// Check if this is the first run
 	const hasShownWelcome = context.globalState.get<boolean>('hasShownWelcome', false);
