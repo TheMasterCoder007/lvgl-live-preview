@@ -5,17 +5,21 @@ import { PreviewSettings, SettingsOptions } from '../types';
  * @class SettingsManager
  * @brief Central place for reading and writing LVGL Live Preview settings.
  *
- * Settings are still persisted to VS Code's configuration (settings.json), so the
- * in-webview settings panel and the native VS Code settings UI stay in sync. Every
- * consumer in the extension keeps reading from `vscode.workspace.getConfiguration`,
- * so writing here is enough to update the whole extension.
+ * Settings are owned entirely by the preview and stored in the extension's own
+ * global state - they are intentionally NOT VS Code configuration settings, so
+ * they do not appear in the VS Code Settings UI and editing them never triggers
+ * VS Code's per-key configuration-change events. All changes flow through the
+ * in-preview settings panel and are applied only when the user clicks Save.
  */
 export class SettingsManager {
-	private static readonly SECTION = 'lvglPreview';
+	/** globalState key under which the settings object is persisted. */
+	private static readonly STORAGE_KEY = 'lvglPreview.settings';
+
+	/** Legacy VS Code configuration section, used only for one-time migration. */
+	private static readonly LEGACY_SECTION = 'lvglPreview';
 
 	/**
-	 * @brief Default values, kept in sync with the `contributes.configuration`
-	 *        defaults declared in package.json.
+	 * @brief Default values used when no stored settings exist.
 	 */
 	private static readonly DEFAULTS: PreviewSettings = {
 		emccOptimization: '-O1',
@@ -30,9 +34,6 @@ export class SettingsManager {
 
 	/**
 	 * @brief Selectable option lists surfaced in the webview settings panel.
-	 *
-	 * These mirror the `enum` lists declared in package.json so the panel can build
-	 * its dropdowns without duplicating the values inside the HTML template.
 	 */
 	public static readonly OPTIONS: SettingsOptions = {
 		lvglVersions: [
@@ -68,12 +69,57 @@ export class SettingsManager {
 	};
 
 	/**
-	 * @brief Reads the current settings, resolved from VS Code configuration.
+	 * @brief Reads the current settings from the extension's global state.
 	 *
-	 * @returns The effective PreviewSettings (user/workspace values or defaults).
+	 * On first use (no stored settings yet) any pre-existing VS Code `lvglPreview.*`
+	 * configuration is migrated in, so users upgrading from an earlier version keep
+	 * their previously configured values.
+	 *
+	 * @param context The extension context (provides global state).
+	 * @returns The effective PreviewSettings.
 	 */
-	public static getSettings(): PreviewSettings {
-		const config = vscode.workspace.getConfiguration(this.SECTION);
+	public static getSettings(context: vscode.ExtensionContext): PreviewSettings {
+		const stored = context.globalState.get<Partial<PreviewSettings>>(this.STORAGE_KEY);
+		if (stored) {
+			// Merge over defaults so any newly added setting has a sane value.
+			return { ...this.DEFAULTS, ...stored };
+		}
+		return this.readLegacySettings();
+	}
+
+	/**
+	 * @brief Persists settings to the extension's global state.
+	 *
+	 * @param context The extension context (provides global state).
+	 * @param newSettings The settings selected in the webview panel.
+	 * @returns The list of keys whose value actually changed.
+	 */
+	public static async saveSettings(
+		context: vscode.ExtensionContext,
+		newSettings: PreviewSettings
+	): Promise<(keyof PreviewSettings)[]> {
+		const current = this.getSettings(context);
+		const merged: PreviewSettings = { ...current, ...newSettings };
+
+		const changed = (Object.keys(merged) as (keyof PreviewSettings)[]).filter(
+			(key) => merged[key] !== current[key]
+		);
+
+		await context.globalState.update(this.STORAGE_KEY, merged);
+		return changed;
+	}
+
+	/**
+	 * @brief Reads settings from legacy VS Code configuration for migration.
+	 *
+	 * VS Code still returns values present in a user's/workspace settings.json even
+	 * though the extension no longer declares them, so existing configurations are
+	 * picked up here. Unset keys fall back to defaults.
+	 *
+	 * @returns PreviewSettings seeded from any legacy configuration.
+	 */
+	private static readLegacySettings(): PreviewSettings {
+		const config = vscode.workspace.getConfiguration(this.LEGACY_SECTION);
 		return {
 			emccOptimization: config.get<string>('emccOptimization', this.DEFAULTS.emccOptimization),
 			lvglVersion: config.get<string>('lvglVersion', this.DEFAULTS.lvglVersion),
@@ -84,38 +130,5 @@ export class SettingsManager {
 			lvglMemorySize: config.get<number>('lvglMemorySize', this.DEFAULTS.lvglMemorySize),
 			wasmMemorySize: config.get<number>('wasmMemorySize', this.DEFAULTS.wasmMemorySize),
 		};
-	}
-
-	/**
-	 * @brief Persists settings to VS Code configuration, writing only changed keys.
-	 *
-	 * Writing only the keys that actually changed keeps settings.json tidy and avoids
-	 * spurious configuration-change events (which would otherwise trigger needless
-	 * rebuilds).
-	 *
-	 * @param newSettings The settings selected in the webview panel.
-	 * @returns true if any value was written (i.e. something changed), false otherwise.
-	 */
-	public static async saveSettings(newSettings: PreviewSettings): Promise<boolean> {
-		const config = vscode.workspace.getConfiguration(this.SECTION);
-		const current = this.getSettings();
-
-		// Persist to the workspace when one is open, otherwise to the user (global)
-		// settings - this matches where VS Code reads them back from.
-		const target = vscode.workspace.workspaceFolders
-			? vscode.ConfigurationTarget.Workspace
-			: vscode.ConfigurationTarget.Global;
-
-		let changed = false;
-		const keys = Object.keys(newSettings) as (keyof PreviewSettings)[];
-
-		for (const key of keys) {
-			if (newSettings[key] !== current[key]) {
-				await config.update(key, newSettings[key], target);
-				changed = true;
-			}
-		}
-
-		return changed;
 	}
 }

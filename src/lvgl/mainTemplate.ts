@@ -78,6 +78,13 @@ int main(int argc, char *argv[]) {
 
     printf("Initializing LVGL Preview (v9+)...\\n");
 
+    /* Scope SDL's keyboard capture to the canvas element instead of the whole
+     * browser window. Otherwise SDL calls preventDefault() on key events at the
+     * window level, which stops HTML overlays (such as the preview settings
+     * panel) from receiving keystrokes. Must be set before SDL is initialized
+     * (lv_sdl_window_create performs SDL_Init internally). */
+    SDL_SetHint(SDL_HINT_EMSCRIPTEN_KEYBOARD_ELEMENT, "#canvas");
+
     /* Initialize LVGL */
     lv_init();
     printf("LVGL initialized\\n");
@@ -183,6 +190,13 @@ int main(int argc, char *argv[]) {
     (void)argv;
 
     printf("Initializing LVGL Preview (v8)...\\n");
+
+    /* Scope SDL's keyboard capture to the canvas element instead of the whole
+     * browser window. Otherwise SDL calls preventDefault() on key events at the
+     * window level, which stops HTML overlays (such as the preview settings
+     * panel) from receiving keystrokes. Must be set before SDL is initialized
+     * (sdl_init performs SDL_Init internally). */
+    SDL_SetHint(SDL_HINT_EMSCRIPTEN_KEYBOARD_ELEMENT, "#canvas");
 
     /* Initialize LVGL */
     lv_init();

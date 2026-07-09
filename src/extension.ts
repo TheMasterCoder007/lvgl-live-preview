@@ -9,13 +9,6 @@ let compilationManager: CompilationManager | undefined;
 let statusBarManager: StatusBarManager | undefined;
 let outputChannel: vscode.OutputChannel;
 
-// Debounced configuration-change handling. A single settings save can produce a
-// burst of change events (one per key); these coalesce them into one reaction.
-const CONFIG_CHANGE_DEBOUNCE_MS = 200;
-let configChangeTimer: ReturnType<typeof setTimeout> | undefined;
-let pendingNeedsRebuild = false;
-let pendingNeedsWatcherRestart = false;
-
 /**
  * @brief Activates the LVGL Live Preview extension
  *
@@ -157,101 +150,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			vscode.window.showInformationMessage('LVGL Preview cache cleared');
 		})
 	);
-
-	/**
-	 * Listen for configuration changes.
-	 *
-	 * Changes can arrive as a burst of individual events - notably when the
-	 * in-webview settings panel saves several keys at once. The handler accumulates
-	 * what each event affects and debounces the actual reaction, so a multi-key save
-	 * results in a single rebuild (or watcher restart) rather than one per key.
-	 */
-	context.subscriptions.push(
-		vscode.workspace.onDidChangeConfiguration((event) => {
-			if (!event.affectsConfiguration('lvglPreview')) {
-				return;
-			}
-
-			// Settings baked into the compiled output require a full rebuild.
-			pendingNeedsRebuild =
-				pendingNeedsRebuild ||
-				event.affectsConfiguration('lvglPreview.displayWidth') ||
-				event.affectsConfiguration('lvglPreview.displayHeight') ||
-				event.affectsConfiguration('lvglPreview.emccOptimization') ||
-				event.affectsConfiguration('lvglPreview.lvglVersion') ||
-				event.affectsConfiguration('lvglPreview.lvglMemorySize') ||
-				event.affectsConfiguration('lvglPreview.wasmMemorySize');
-
-			// Settings that only affect how file changes are watched.
-			pendingNeedsWatcherRestart =
-				pendingNeedsWatcherRestart ||
-				event.affectsConfiguration('lvglPreview.autoReload') ||
-				event.affectsConfiguration('lvglPreview.debounceDelay');
-
-			if (configChangeTimer) {
-				clearTimeout(configChangeTimer);
-			}
-			configChangeTimer = setTimeout(() => {
-				configChangeTimer = undefined;
-				void applyConfigurationChange();
-			}, CONFIG_CHANGE_DEBOUNCE_MS);
-		})
-	);
-}
-
-/**
- * @brief Applies accumulated configuration changes to the running preview.
- *
- * Called (debounced) after one or more `lvglPreview.*` settings change. Decides
- * whether the preview needs a full rebuild, a file-watcher restart, or just a
- * refresh of the in-webview settings panel, then resets the pending flags.
- */
-async function applyConfigurationChange(): Promise<void> {
-	const needsRebuild = pendingNeedsRebuild;
-	const needsWatcherRestart = pendingNeedsWatcherRestart;
-	pendingNeedsRebuild = false;
-	pendingNeedsWatcherRestart = false;
-
-	outputChannel.appendLine('Configuration changed, checking if reload is needed...');
-
-	// Nothing to do if there is no active preview.
-	if (!previewManager || !compilationManager || !previewManager.isRunning()) {
-		outputChannel.appendLine('No active preview, skipping reload');
-		return;
-	}
-
-	// Compile-affecting changes require the cached artifacts to be discarded.
-	if (needsRebuild) {
-		outputChannel.appendLine('Settings affecting compilation changed, clearing cache...');
-		statusBarManager?.setStatus('compiling');
-		await compilationManager.clearCache();
-	}
-
-	if (needsWatcherRestart) {
-		// A full restart re-reads the watcher settings (autoReload/debounceDelay) and
-		// also recompiles, so it covers the case where compile settings changed too.
-		outputChannel.appendLine('File watcher settings changed, restarting preview...');
-		void vscode.window.showInformationMessage('LVGL Preview settings changed. Restarting preview...');
-
-		const currentFile = previewManager.getCurrentFile();
-		if (currentFile) {
-			statusBarManager?.setStatus('initializing');
-			await previewManager.stopPreview();
-			await previewManager.startPreview(currentFile);
-			statusBarManager?.setStatus('running');
-		}
-	} else if (needsRebuild) {
-		outputChannel.appendLine('Rebuilding preview...');
-		void vscode.window.showInformationMessage('LVGL Preview settings changed. Rebuilding...');
-
-		statusBarManager?.setStatus('compiling');
-		await previewManager.rebuild();
-		statusBarManager?.setStatus('running');
-	} else {
-		// Settings changed but nothing needs recompiling/restarting - just make sure
-		// the in-webview settings panel reflects the persisted values.
-		previewManager.refreshSettings();
-	}
 }
 
 async function showWelcomeMessage() {

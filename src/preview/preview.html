@@ -198,7 +198,7 @@
             font-weight: 600;
         }
 
-        .settings-row input[type="number"],
+        .settings-row input[type="text"],
         .settings-row select {
             background-color: var(--vscode-input-background, #2a2a2a);
             color: var(--vscode-input-foreground, #cccccc);
@@ -295,12 +295,12 @@
     const SETTINGS_FIELDS = [
         { key: 'lvglVersion', label: 'LVGL Version', type: 'select', optionsKey: 'lvglVersions' },
         { key: 'emccOptimization', label: 'Emscripten Optimization', type: 'select', optionsKey: 'optimizations' },
-        { key: 'displayWidth', label: 'Display Width (px)', type: 'number', min: 1 },
-        { key: 'displayHeight', label: 'Display Height (px)', type: 'number', min: 1 },
+        { key: 'displayWidth', label: 'Display Width (px)', type: 'number' },
+        { key: 'displayHeight', label: 'Display Height (px)', type: 'number' },
         { key: 'lvglMemorySize', label: 'LVGL Memory Size', type: 'select', optionsKey: 'lvglMemorySizes', suffix: ' KB' },
         { key: 'wasmMemorySize', label: 'WASM Memory Size', type: 'select', optionsKey: 'wasmMemorySizes', suffix: ' MB' },
         { key: 'autoReload', label: 'Auto reload on file changes', type: 'checkbox' },
-        { key: 'debounceDelay', label: 'Debounce Delay (ms)', type: 'number', min: 0 }
+        { key: 'debounceDelay', label: 'Debounce Delay (ms)', type: 'number' }
     ];
 
     function buildSettingsForm(settings, options) {
@@ -335,12 +335,18 @@
                 input.type = 'checkbox';
                 input.checked = Boolean(settings[field.key]);
             } else {
+                // Text entry that only accepts digits
                 input = document.createElement('input');
-                input.type = 'number';
-                if (typeof field.min === 'number') {
-                    input.min = String(field.min);
-                }
+                input.type = 'text';
+                input.inputMode = 'numeric';
+                input.setAttribute('pattern', '[0-9]*');
                 input.value = String(settings[field.key]);
+                input.addEventListener('input', function() {
+                    const cleaned = this.value.replace(/[^0-9]/g, '');
+                    if (this.value !== cleaned) {
+                        this.value = cleaned;
+                    }
+                });
             }
 
             input.id = 'setting-' + field.key;

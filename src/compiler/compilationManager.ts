@@ -10,6 +10,7 @@ import { IntellisenseHelper } from '../utils/intellisenseHelper';
 import { CompilationResult, ResolvedProjectConfig } from '../types';
 import { DependencyCache, CompilationSettings } from '../cache/dependencyCache';
 import { ConfigLoader } from '../utils/configLoader';
+import { SettingsManager } from '../utils/settingsManager';
 
 /**
  * @class CompilationManager
@@ -71,10 +72,10 @@ export class CompilationManager implements vscode.Disposable {
 	 * @returns Promise resolving to CompilationResult with success status and any errors/warnings.
 	 */
 	public async compileUserFile(fileUri: vscode.Uri): Promise<CompilationResult> {
-		const config = vscode.workspace.getConfiguration('lvglPreview');
-		const lvglVersion = config.get<string>('lvglVersion', '9.2.0');
-		const wasmMemorySize = config.get<number>('wasmMemorySize', 128);
-		const lvglMemorySize = config.get<number>('lvglMemorySize', 256);
+		const settings = SettingsManager.getSettings(this.context);
+		const lvglVersion = settings.lvglVersion;
+		const wasmMemorySize = settings.wasmMemorySize;
+		const lvglMemorySize = settings.lvglMemorySize;
 
 		// Validate memory settings
 		const lvglMemoryMB = lvglMemorySize / 1024;
@@ -132,7 +133,7 @@ export class CompilationManager implements vscode.Disposable {
 				const projectId = this.getProjectId(projectConfig.configFileDir);
 				const compilationSettings: CompilationSettings = {
 					lvglVersion,
-					optimization: config.get<string>('emccOptimization', '-O1'),
+					optimization: settings.emccOptimization,
 					lvglMemorySize,
 					wasmMemorySize,
 					includePaths: userIncludePaths,
@@ -180,7 +181,7 @@ export class CompilationManager implements vscode.Disposable {
 				dependencyObjects = await this.compileDependencies(
 					dependencies,
 					lvglIncludePath,
-					config.get<string>('emccOptimization', '-O1'),
+					settings.emccOptimization,
 					userIncludePaths,
 					defines
 				);

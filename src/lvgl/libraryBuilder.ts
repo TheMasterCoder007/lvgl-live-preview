@@ -5,6 +5,7 @@ import { VersionManager } from './versionManager';
 import { ConfigGenerator } from './configGenerator';
 import { LvDriversConfigGenerator } from './lvDriversConfigGenerator';
 import { EmccWrapper } from '../compiler/emccWrapper';
+import { SettingsManager } from '../utils/settingsManager';
 
 /**
  * @class LibraryBuilder
@@ -22,6 +23,7 @@ export class LibraryBuilder {
 	private emccWrapper: EmccWrapper;
 	private outputChannel: vscode.OutputChannel;
 	private readonly cachePath: string;
+	private readonly context: vscode.ExtensionContext;
 
 	/**
 	 * @constructor
@@ -32,6 +34,7 @@ export class LibraryBuilder {
 	 */
 	constructor(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel) {
 		this.outputChannel = outputChannel;
+		this.context = context;
 		this.versionManager = new VersionManager(context, outputChannel);
 		this.emccWrapper = new EmccWrapper(context, outputChannel);
 		this.cachePath = path.join(context.globalStorageUri.fsPath, 'cache');
@@ -59,11 +62,11 @@ export class LibraryBuilder {
 	 * @throws {Error} If compilation fails or no object files are produced.
 	 */
 	public async buildLibrary(version: string): Promise<string[]> {
-		const config = vscode.workspace.getConfiguration('lvglPreview');
-		const optimization = config.get<string>('emccOptimization', '-O2');
-		const displayWidth = config.get<number>('displayWidth', 480);
-		const displayHeight = config.get<number>('displayHeight', 320);
-		const lvglMemorySize = config.get<number>('lvglMemorySize', 256);
+		const settings = SettingsManager.getSettings(this.context);
+		const optimization = settings.emccOptimization;
+		const displayWidth = settings.displayWidth;
+		const displayHeight = settings.displayHeight;
+		const lvglMemorySize = settings.lvglMemorySize;
 
 		// Detect if lv_drivers are needed (for v8) and add to the cache key
 		const majorVersion = parseInt(version.split('.')[0], 10);

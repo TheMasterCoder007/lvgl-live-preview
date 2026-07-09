@@ -9,14 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Added an in-preview settings panel: a gear button in the top-right corner of the preview window opens a panel for editing all settings without leaving the preview
-- Added a save button so settings changes are applied only when saved; closing the panel without saving discards edits and keeps the previous settings
 
 ### Changed
-- Settings edited in the preview panel persist to the same VS Code configuration, so the panel and the native VS Code settings UI stay in sync
-- The preview now rebuilds/reloads only when saved settings actually change; multiple settings changed in a single save are coalesced into one rebuild
+- Settings are now owned entirely by the preview and stored by the extension; they no longer appear in the VS Code Settings UI. Existing `lvglPreview.*` values are migrated automatically on first use
+- The preview rebuilds/reloads only when settings are saved and only once per save regardless of how many fields were edited. Closing the popup without saving will keep the old settings.
+- Removed the per-field reload that occurred when editing settings through the VS Code Settings UI
 
 ### Fixed
 - Fixed `lvglMemorySize` and `wasmMemorySize` changes not triggering a rebuild of the running preview
+- Fixed keyboard entry being blocked in the settings panel by scoping SDL's keyboard capture to the preview canvas
 
 ### Security
 - Updated dependencies of the project to resolve security vulnerabilities as reported by npm audit

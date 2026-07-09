@@ -172,7 +172,7 @@ export class WebviewManager implements vscode.Disposable {
 	public sendSettings(): void {
 		this.sendMessage({
 			type: 'updateSettings',
-			settings: SettingsManager.getSettings(),
+			settings: SettingsManager.getSettings(this.context),
 			options: SettingsManager.OPTIONS,
 		});
 	}
