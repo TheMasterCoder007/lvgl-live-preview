@@ -207,7 +207,11 @@ void Promise.resolve(this.handlers.onClearCache?.()).catch((error) =>
 				break;
 			case 'resetSettings':
 				this.outputChannel.appendLine('Webview requesting settings reset');
-				void Promise.resolve(this.handlers.onResetSettings?.());
+				void Promise.resolve(this.handlers.onResetSettings?.()).catch((error) =>
+					this.outputChannel.appendLine(
+						`Webview reset-settings handler failed: ${error instanceof Error ? error.message : String(error)}`
+					)
+				);
 				break;
 		}
 	}
