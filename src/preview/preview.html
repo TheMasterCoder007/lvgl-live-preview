@@ -251,8 +251,8 @@
 <body>
 <div id="toolbar">
     <button class="toolbar-button" id="reload-button">⟳ Reload</button>
-    <button class="toolbar-button" id="orientation-button" title="Toggle orientation (swap width/height for this session)" aria-label="Toggle orientation">⤢ Rotate</button>
-    <button class="toolbar-button" id="settings-button" title="Settings" aria-label="Settings">⚙</button>
+    <button class="toolbar-button" id="orientation-button" title="Toggle orientation (swap width/height for this session)" aria-label="Toggle orientation" aria-pressed="false">⤢ Rotate</button>
+    <button class="toolbar-button" id="settings-button" title="Settings" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false">⚙</button>
 </div>
 
 <div id="settings-overlay" class="hidden">
@@ -411,10 +411,18 @@
         // Build the form from a fresh copy so edits stay local until saved.
         buildSettingsForm(currentSettings, currentOptions);
         document.getElementById('settings-overlay').classList.remove('hidden');
+        const settingsButton = document.getElementById('settings-button');
+        if (settingsButton) {
+            settingsButton.setAttribute('aria-expanded', 'true');
+        }
     }
 
     function closeSettings() {
         document.getElementById('settings-overlay').classList.add('hidden');
+        const settingsButton = document.getElementById('settings-button');
+        if (settingsButton) {
+            settingsButton.setAttribute('aria-expanded', 'false');
+        }
     }
 
     function updateOrientationButton(swapped) {
@@ -423,6 +431,7 @@
             return;
         }
         button.classList.toggle('active', Boolean(swapped));
+        button.setAttribute('aria-pressed', String(Boolean(swapped)));
         button.title = swapped
             ? 'Orientation swapped for this session - click to restore saved orientation'
             : 'Toggle orientation (swap width/height for this session)';
