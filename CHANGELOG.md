@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The preview rebuilds/reloads only when settings are saved and only once per save regardless of how many fields were edited. Closing the popup without saving will keep the old settings.
 - Removed the per-field reload that occurred when editing settings through the VS Code Settings UI
 
+### Performance
+- Settings changes now rebuild only what is actually affected instead of always rebuilding the whole LVGL library. Changing the display dimensions or WASM memory size now only relinks (the LVGL library is reused); changing the LVGL version, optimization level, or LVGL heap size rebuilds the library, but the result is cached, so switching values back is instant
+- Saving settings no longer clears the entire build cache; the LVGL library and dependency caches self-invalidate based on the settings that actually affect their output (use "LVGL: Force Rebuild" for a full clean rebuild)
+
 ### Fixed
 - Fixed `lvglMemorySize` and `wasmMemorySize` changes not triggering a rebuild of the running preview
 - Fixed keyboard entry being blocked in the settings panel by scoping SDL's keyboard capture to the preview canvas

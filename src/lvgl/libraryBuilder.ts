@@ -73,15 +73,32 @@ export class LibraryBuilder {
 		const needsLvDrivers = majorVersion < 9;
 		const driversSuffix = needsLvDrivers ? '_with_lvdrivers' : '';
 
-		// Add a build strategy version to the cache key to invalidate old caches when compilation changes
+		// Cache-key strategy (bump the version to invalidate older caches when the
+		// build changes):
 		// v2: SDL drivers compiled during final linking (not pre-compiled)
 		// v3: Added lvglMemorySize to the cache key
-		const buildVersion = 'v3';
-		const cacheKey = `${version}_${optimization}_${displayWidth}x${displayHeight}_mem${lvglMemorySize}${driversSuffix}_${buildVersion}`;
+		// v4: Removed display dimensions from the cache key - they do not affect the
+		//     compiled LVGL objects (the driver applies resolution at runtime),
+		//     so changing the dimensions now reuses the cached library and only
+		//     triggers a relink instead of a full rebuild.
+		const buildVersion = 'v4';
+		const cacheKey = `${version}_${optimization}_mem${lvglMemorySize}${driversSuffix}_${buildVersion}`;
 		const objDir = path.join(this.cachePath, `obj_${cacheKey}`);
 		const markerFile = path.join(objDir, '.build_complete');
 
-		// Check if object files are already built
+		// Always ensure the LVGL sources are present and (re)write the configuration
+		// headers for the CURRENT dimensions - even on a cache hit - so the final link
+		// (main.c, and for v8 the SDL driver sources) sees the latest resolution.
+		const { versionPath, lvDriversPath } = await this.prepareLvglConfig(
+			version,
+			cacheKey,
+			displayWidth,
+			displayHeight,
+			lvglMemorySize,
+			needsLvDrivers
+		);
+
+		// Reuse cached object files when available.
 		if (fs.existsSync(markerFile)) {
 			this.outputChannel.appendLine(`Using cached LVGL objects: ${objDir}`);
 			const objectFiles = this.getObjectFiles(objDir);
@@ -98,54 +115,6 @@ export class LibraryBuilder {
 				cancellable: false,
 			},
 			async (progress) => {
-				// Ensure LVGL version is downloaded
-				progress.report({ message: 'Downloading LVGL...' });
-				const versionPath = await this.versionManager.ensureVersion(version);
-
-				// Detect LVGL major version to determine if we need lv_drivers
-				const majorVersion = parseInt(version.split('.')[0], 10);
-				const needsLvDrivers = majorVersion < 9;
-
-				// Generate lv_conf.h
-				progress.report({ message: 'Generating configuration...' });
-				const configPath = path.join(this.cachePath, `lv_conf_${cacheKey}.h`);
-				ConfigGenerator.generateLvConf(configPath, displayWidth, displayHeight, lvglMemorySize);
-
-				// Copy lv_conf.h to LVGL directory
-				const lvglConfigPath = path.join(versionPath, 'lv_conf.h');
-				fs.copyFileSync(configPath, lvglConfigPath);
-
-				// For LVGL v8, download and configure lv_drivers
-				let lvDriversPath: string | null = null;
-				let lvDriversSourceFiles: string[] = [];
-				if (needsLvDrivers) {
-					progress.report({ message: 'Downloading lv_drivers...' });
-					lvDriversPath = await this.versionManager.ensureLvDrivers();
-
-					// Generate lv_drv_conf.h
-					const drvConfigPath = path.join(this.cachePath, `lv_drv_conf_${cacheKey}.h`);
-					LvDriversConfigGenerator.generateLvDrvConf(drvConfigPath, displayWidth, displayHeight);
-
-					// Copy lv_drv_conf.h directly to lv_drivers/master directory
-					// The compiler include path is set to lv_drivers/master, so the file needs to be there
-					const lvDriversConfigPath = path.join(lvDriversPath, 'lv_drv_conf.h');
-					fs.copyFileSync(drvConfigPath, lvDriversConfigPath);
-					this.outputChannel.appendLine(`Copied lv_drv_conf.h to: ${lvDriversConfigPath}`);
-
-					// Copy LVGL to lv_drivers/lvgl for include compatibility
-					// lv_drivers expects: #include "lvgl/lvgl.h"
-					const lvglInDriversPath = path.join(lvDriversPath, 'lvgl');
-					if (!fs.existsSync(lvglInDriversPath)) {
-						this.outputChannel.appendLine(`Copying LVGL to lv_drivers for include compatibility...`);
-						fs.cpSync(versionPath, lvglInDriversPath, { recursive: true });
-						this.outputChannel.appendLine(`Copied LVGL to: ${lvglInDriversPath}`);
-					}
-
-					// Get SDL driver source files
-					lvDriversSourceFiles = this.versionManager.getLvDriversSdlSourceFiles();
-					this.outputChannel.appendLine(`Found ${lvDriversSourceFiles.length} lv_drivers SDL source files`);
-				}
-
 				// Create an object directory
 				if (!fs.existsSync(objDir)) {
 					fs.mkdirSync(objDir, { recursive: true });
@@ -164,23 +133,15 @@ export class LibraryBuilder {
 					includePaths.push(lvDriversPath);
 				}
 
-				// Compile LVGL source files
+				// Compile LVGL source files. The lv_drivers SDL source files are NOT
+				// pre-compiled here - they require SDL2 headers only available during the
+				// final link (USE_SDL=2), so they are compiled in compilationManager.ts.
 				const objectFiles = await this.emccWrapper.compileToObjects(
 					sourceFiles,
 					objDir,
 					includePaths,
 					optimization
 				);
-
-				// Note: lv_drivers SDL source files are NOT pre-compiled here
-				// They require SDL2 headers which are only available during final linking
-				// when -s USE_SDL=2 triggers Emscripten's SDL2 port download
-				// The SDL driver source files will be compiled in compilationManager.ts during final linking
-				if (lvDriversSourceFiles.length > 0) {
-					this.outputChannel.appendLine(
-						`Found ${lvDriversSourceFiles.length} lv_drivers SDL source files (will compile during final linking)`
-					);
-				}
 
 				if (objectFiles.length === 0) {
 					throw new Error('Failed to compile LVGL object files');
@@ -193,6 +154,59 @@ export class LibraryBuilder {
 				return objectFiles;
 			}
 		);
+	}
+
+	/**
+	 * @brief Ensures LVGL sources exist and installs configuration headers for the
+	 *        current display settings.
+	 *
+	 * Runs on every build, including cache hits. Display dimensions are intentionally
+	 * excluded from the object cache key because they do not affect the compiled LVGL
+	 * objects, but the final link step compiles main.c (and, for v8, the SDL driver
+	 * sources) against these headers and must therefore see the current resolution.
+	 *
+	 * @param version LVGL version being built.
+	 * @param cacheKey Current cache key (used to name the generated config files).
+	 * @param displayWidth Display width in pixels.
+	 * @param displayHeight Display height in pixels.
+	 * @param lvglMemorySize LVGL heap size in KB.
+	 * @param needsLvDrivers Whether the (v8) lv_drivers config must be prepared.
+	 * @returns The resolved LVGL source path and, for v8, the lv_drivers path.
+	 */
+	private async prepareLvglConfig(
+		version: string,
+		cacheKey: string,
+		displayWidth: number,
+		displayHeight: number,
+		lvglMemorySize: number,
+		needsLvDrivers: boolean
+	): Promise<{ versionPath: string; lvDriversPath: string | null }> {
+		const versionPath = await this.versionManager.ensureVersion(version);
+
+		// Generate lv_conf.h and install it into the LVGL source tree.
+		const configPath = path.join(this.cachePath, `lv_conf_${cacheKey}.h`);
+		ConfigGenerator.generateLvConf(configPath, displayWidth, displayHeight, lvglMemorySize);
+		fs.copyFileSync(configPath, path.join(versionPath, 'lv_conf.h'));
+
+		let lvDriversPath: string | null = null;
+		if (needsLvDrivers) {
+			lvDriversPath = await this.versionManager.ensureLvDrivers();
+
+			// Generate lv_drv_conf.h and copy it into the lv_drivers directory (which is
+			// on the compiler include path).
+			const drvConfigPath = path.join(this.cachePath, `lv_drv_conf_${cacheKey}.h`);
+			LvDriversConfigGenerator.generateLvDrvConf(drvConfigPath, displayWidth, displayHeight);
+			fs.copyFileSync(drvConfigPath, path.join(lvDriversPath, 'lv_drv_conf.h'));
+
+			// lv_drivers expects to include "lvgl/lvgl.h" - copy LVGL in once.
+			const lvglInDriversPath = path.join(lvDriversPath, 'lvgl');
+			if (!fs.existsSync(lvglInDriversPath)) {
+				this.outputChannel.appendLine('Copying LVGL to lv_drivers for include compatibility...');
+				fs.cpSync(versionPath, lvglInDriversPath, { recursive: true });
+			}
+		}
+
+		return { versionPath, lvDriversPath };
 	}
 
 	/**

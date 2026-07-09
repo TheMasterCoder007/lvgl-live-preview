@@ -243,9 +243,12 @@ export class PreviewManager implements vscode.Disposable {
 		const needsWatcherRestart = changed.some((key) => PreviewManager.WATCHER_KEYS.includes(key));
 
 		if (needsRebuild) {
-			// Compile-affecting settings changed: discard cached artifacts and rebuild.
-			// rebuild() recreates the webview, which re-requests settings on load.
-			await this.compilationManager.clearCache();
+			// Compile-affecting settings changed: rebuild. We intentionally do NOT
+			// clear the cache here - the LVGL library and dependency caches are keyed
+			// on the settings that actually affect their output, so they rebuild only
+			// what changed (e.g., changing display dimensions reuses the cached library
+			// and only relinks). rebuild() recreates the webview, which re-requests
+			// settings on load.
 			await this.rebuild();
 		} else {
 			// No rebuild: make sure the panel reflects the persisted values.
