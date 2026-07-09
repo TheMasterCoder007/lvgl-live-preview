@@ -55,7 +55,9 @@ export type WebviewMessage =
 	| { type: 'reload' }
 	| { type: 'saveSettings'; settings: PreviewSettings }
 	| { type: 'log'; level: 'log' | 'error'; message: string }
-	| { type: 'toggleOrientation' };
+	| { type: 'toggleOrientation' }
+	| { type: 'stop' }
+	| { type: 'clearCache' };
 
 export type PreviewStatus = 'idle' | 'initializing' | 'compiling' | 'running' | 'error';
 

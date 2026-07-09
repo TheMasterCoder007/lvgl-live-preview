@@ -4,6 +4,25 @@ import { HtmlTemplate } from './htmlTemplate';
 import { SettingsManager } from '../utils/settingsManager';
 
 /**
+ * @interface WebviewHandlers
+ * @brief Callbacks the WebviewManager invokes in response to webview toolbar/panel actions.
+ *
+ * All handlers are optional so callers only wire up what they need.
+ */
+export interface WebviewHandlers {
+	/** Invoked when the reload button is clicked. */
+	onReload?: () => void | Promise<void>;
+	/** Invoked when settings are saved in the settings panel. */
+	onSaveSettings?: (settings: PreviewSettings) => void | Promise<void>;
+	/** Invoked when the orientation button is clicked. */
+	onToggleOrientation?: () => void | Promise<void>;
+	/** Invoked when the stop button is clicked. */
+	onStop?: () => void | Promise<void>;
+	/** Invoked when the reset cache button is clicked. */
+	onClearCache?: () => void | Promise<void>;
+}
+
+/**
  * @class WebviewManager
  * @brief Manages the webview panel for LVGL preview display.
  *
@@ -17,9 +36,7 @@ export class WebviewManager implements vscode.Disposable {
 	private panel: vscode.WebviewPanel | undefined;
 	private outputChannel: vscode.OutputChannel;
 	private logChannel: vscode.OutputChannel;
-	private onReloadCallback?: () => void | Promise<void>;
-	private onSaveSettingsCallback?: (settings: PreviewSettings) => void | Promise<void>;
-	private onToggleOrientationCallback?: () => void | Promise<void>;
+	private readonly handlers: WebviewHandlers;
 	private hasRevealedLogChannel = false;
 
 	/**
@@ -29,23 +46,17 @@ export class WebviewManager implements vscode.Disposable {
 	 * @param context - The VS Code extension context
 	 * @param outputChannel - Output channel for extension/build logging
 	 * @param logChannel - Output channel for the previewed app's runtime output (printf / LV_LOG_*)
-	 * @param onReload - Optional callback invoked when reload button is clicked in webview
-	 * @param onSaveSettings - Optional callback invoked when settings are saved in the webview panel
-	 * @param onToggleOrientation - Optional callback invoked when the orientation button is clicked
+	 * @param handlers - Callbacks invoked in response to webview toolbar/panel actions
 	 */
 	constructor(
 		private context: vscode.ExtensionContext,
 		outputChannel: vscode.OutputChannel,
 		logChannel: vscode.OutputChannel,
-		onReload?: () => void | Promise<void>,
-		onSaveSettings?: (settings: PreviewSettings) => void | Promise<void>,
-		onToggleOrientation?: () => void | Promise<void>
+		handlers: WebviewHandlers = {}
 	) {
 		this.outputChannel = outputChannel;
 		this.logChannel = logChannel;
-		this.onReloadCallback = onReload;
-		this.onSaveSettingsCallback = onSaveSettings;
-		this.onToggleOrientationCallback = onToggleOrientation;
+		this.handlers = handlers;
 	}
 
 	/**
@@ -165,24 +176,32 @@ export class WebviewManager implements vscode.Disposable {
 				break;
 			case 'reload':
 				this.outputChannel.appendLine('Webview requesting reload');
-				if (this.onReloadCallback) {
-					void Promise.resolve(this.onReloadCallback());
-				}
+				void Promise.resolve(this.handlers.onReload?.());
 				break;
 			case 'saveSettings':
 				this.outputChannel.appendLine('Webview requesting settings save');
-				if (this.onSaveSettingsCallback) {
-					void Promise.resolve(this.onSaveSettingsCallback(message.settings));
-				}
+				void Promise.resolve(this.handlers.onSaveSettings?.(message.settings));
 				break;
 			case 'log':
 				this.appendRuntimeLog(message.level, message.message);
 				break;
 			case 'toggleOrientation':
 				this.outputChannel.appendLine('Webview requesting orientation toggle');
-				if (this.onToggleOrientationCallback) {
-					void Promise.resolve(this.onToggleOrientationCallback());
-				}
+				void Promise.resolve(this.handlers.onToggleOrientation?.());
+				break;
+			case 'stop':
+				this.outputChannel.appendLine('Webview requesting stop');
+void Promise.resolve(this.handlers.onStop?.()).catch((error) =>
+	this.outputChannel.appendLine(`Webview stop handler failed: ${error instanceof Error ? error.message : String(error)}`)
+);
+				break;
+			case 'clearCache':
+				this.outputChannel.appendLine('Webview requesting cache reset');
+void Promise.resolve(this.handlers.onClearCache?.()).catch((error) =>
+	this.outputChannel.appendLine(
+		`Webview clear-cache handler failed: ${error instanceof Error ? error.message : String(error)}`
+	)
+);
 				break;
 		}
 	}
