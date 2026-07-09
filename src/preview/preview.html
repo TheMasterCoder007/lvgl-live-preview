@@ -322,13 +322,27 @@
             if (field.type === 'select') {
                 input = document.createElement('select');
                 const values = (options && options[field.optionsKey]) || [];
+                const currentValue = String(settings[field.key]);
+
+                // If the stored value isn't one of the known options (e.g., migrated
+                // from an older version, or an option that was later removed), inject
+                // it as a selectable entry so the panel shows the real value and Save
+                // never silently overwrites it.
+                const knownValues = values.map(function(value) { return String(value); });
+                if (currentValue !== '' && knownValues.indexOf(currentValue) === -1) {
+                    const currentOpt = document.createElement('option');
+                    currentOpt.value = currentValue;
+                    currentOpt.textContent = currentValue + ' (unsupported)';
+                    input.appendChild(currentOpt);
+                }
+
                 values.forEach(function(value) {
                     const opt = document.createElement('option');
                     opt.value = String(value);
                     opt.textContent = field.suffix ? (value + field.suffix) : String(value);
                     input.appendChild(opt);
                 });
-                input.value = String(settings[field.key]);
+                input.value = currentValue;
             } else if (field.type === 'checkbox') {
                 row.classList.add('settings-checkbox');
                 input = document.createElement('input');
