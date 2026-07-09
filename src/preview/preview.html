@@ -31,6 +31,7 @@
             --vscode-button-secondaryBackground: initial;
             --vscode-button-secondaryForeground: initial;
             --vscode-button-secondaryHoverBackground: initial;
+            --vscode-focusBorder: initial;
         }
         body {
             margin: 0;
@@ -66,6 +67,11 @@
 
         .toolbar-button:hover {
             background-color: var(--vscode-button-hoverBackground);
+        }
+
+        .toolbar-button.active {
+            outline: 2px solid var(--vscode-focusBorder, #007fd4);
+            outline-offset: -1px;
         }
 
         #status {
@@ -245,6 +251,7 @@
 <body>
 <div id="toolbar">
     <button class="toolbar-button" id="reload-button">⟳ Reload</button>
+    <button class="toolbar-button" id="orientation-button" title="Toggle orientation (swap width/height for this session)" aria-label="Toggle orientation">⤢ Rotate</button>
     <button class="toolbar-button" id="settings-button" title="Settings" aria-label="Settings">⚙</button>
 </div>
 
@@ -410,6 +417,17 @@
         document.getElementById('settings-overlay').classList.add('hidden');
     }
 
+    function updateOrientationButton(swapped) {
+        const button = document.getElementById('orientation-button');
+        if (!button) {
+            return;
+        }
+        button.classList.toggle('active', Boolean(swapped));
+        button.title = swapped
+            ? 'Orientation swapped for this session - click to restore saved orientation'
+            : 'Toggle orientation (swap width/height for this session)';
+    }
+
     function saveSettings() {
         const settings = gatherSettings();
         // Basic guard against invalid numeric entries.
@@ -440,6 +458,13 @@
         const settingsButton = document.getElementById('settings-button');
         if (settingsButton) {
             settingsButton.addEventListener('click', openSettings);
+        }
+
+        const orientationButton = document.getElementById('orientation-button');
+        if (orientationButton) {
+            orientationButton.addEventListener('click', function() {
+                vscode.postMessage({ type: 'toggleOrientation' });
+            });
         }
 
         // Suppress the browser context menu over the canvas (replaces the inline
@@ -578,6 +603,7 @@
                 console.log('Settings updated:', message.settings);
                 currentSettings = message.settings;
                 currentOptions = message.options;
+                updateOrientationButton(message.orientationSwapped);
                 // If the panel is open, refresh it to reflect the persisted values.
                 if (!document.getElementById('settings-overlay').classList.contains('hidden')) {
                     buildSettingsForm(currentSettings, currentOptions);

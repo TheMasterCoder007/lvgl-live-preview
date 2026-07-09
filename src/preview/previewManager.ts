@@ -64,6 +64,10 @@ export class PreviewManager implements vscode.Disposable {
 		this.outputChannel.appendLine(`[PreviewManager] Starting preview for: ${fileUri.fsPath}`);
 		this.currentFile = fileUri;
 
+		// A new session always starts in the user's saved orientation; the orientation
+		// toggle is temporary and does not persist across sessions.
+		SettingsManager.setOrientationSwapped(false);
+
 		try {
 			// Create a webview if it does not exist
 			if (!this.webviewManager) {
@@ -77,6 +81,9 @@ export class PreviewManager implements vscode.Disposable {
 					},
 					async (settings) => {
 						await this.saveSettings(settings);
+					},
+					async () => {
+						await this.toggleOrientation();
 					}
 				);
 			}
@@ -204,6 +211,22 @@ export class PreviewManager implements vscode.Disposable {
 		if (this.currentFile) {
 			await this.compileAndUpdate(this.currentFile, true);
 		}
+	}
+
+	/**
+	 * @brief Toggles the preview orientation (swaps display width/height) for this session.
+	 *
+	 * The swap is temporary: it does not modify the user's saved settings and is reset
+	 * when a new preview session starts. Recompiles and reloads with the swapped
+	 * dimensions - this only relinks, since dimensions are not part of the LVGL library
+	 * cache key.
+	 */
+	public async toggleOrientation(): Promise<void> {
+		const swapped = SettingsManager.toggleOrientation();
+		this.outputChannel.appendLine(
+			`[PreviewManager] Orientation toggled (${swapped ? 'swapped' : 'default'})`
+		);
+		await this.rebuild();
 	}
 
 	/**

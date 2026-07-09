@@ -62,7 +62,9 @@ export class LibraryBuilder {
 	 * @throws {Error} If compilation fails or no object files are produced.
 	 */
 	public async buildLibrary(version: string): Promise<string[]> {
-		const settings = SettingsManager.getSettings(this.context);
+		// Use effective settings so a session orientation toggle (swapped width/height)
+		// is reflected in the generated lv_conf.h / lv_drv_conf.h.
+		const settings = SettingsManager.getEffectiveSettings(this.context);
 		const optimization = settings.emccOptimization;
 		const displayWidth = settings.displayWidth;
 		const displayHeight = settings.displayHeight;

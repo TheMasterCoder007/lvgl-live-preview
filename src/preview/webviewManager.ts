@@ -19,6 +19,7 @@ export class WebviewManager implements vscode.Disposable {
 	private logChannel: vscode.OutputChannel;
 	private onReloadCallback?: () => void | Promise<void>;
 	private onSaveSettingsCallback?: (settings: PreviewSettings) => void | Promise<void>;
+	private onToggleOrientationCallback?: () => void | Promise<void>;
 	private hasRevealedLogChannel = false;
 
 	/**
@@ -30,18 +31,21 @@ export class WebviewManager implements vscode.Disposable {
 	 * @param logChannel - Output channel for the previewed app's runtime output (printf / LV_LOG_*)
 	 * @param onReload - Optional callback invoked when reload button is clicked in webview
 	 * @param onSaveSettings - Optional callback invoked when settings are saved in the webview panel
+	 * @param onToggleOrientation - Optional callback invoked when the orientation button is clicked
 	 */
 	constructor(
 		private context: vscode.ExtensionContext,
 		outputChannel: vscode.OutputChannel,
 		logChannel: vscode.OutputChannel,
 		onReload?: () => void | Promise<void>,
-		onSaveSettings?: (settings: PreviewSettings) => void | Promise<void>
+		onSaveSettings?: (settings: PreviewSettings) => void | Promise<void>,
+		onToggleOrientation?: () => void | Promise<void>
 	) {
 		this.outputChannel = outputChannel;
 		this.logChannel = logChannel;
 		this.onReloadCallback = onReload;
 		this.onSaveSettingsCallback = onSaveSettings;
+		this.onToggleOrientationCallback = onToggleOrientation;
 	}
 
 	/**
@@ -174,6 +178,12 @@ export class WebviewManager implements vscode.Disposable {
 			case 'log':
 				this.appendRuntimeLog(message.level, message.message);
 				break;
+			case 'toggleOrientation':
+				this.outputChannel.appendLine('Webview requesting orientation toggle');
+				if (this.onToggleOrientationCallback) {
+					void Promise.resolve(this.onToggleOrientationCallback());
+				}
+				break;
 		}
 	}
 
@@ -210,6 +220,7 @@ export class WebviewManager implements vscode.Disposable {
 			type: 'updateSettings',
 			settings: SettingsManager.getSettings(this.context),
 			options: SettingsManager.OPTIONS,
+			orientationSwapped: SettingsManager.isOrientationSwapped(),
 		});
 	}
 
