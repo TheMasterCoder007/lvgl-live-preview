@@ -191,11 +191,17 @@ export class WebviewManager implements vscode.Disposable {
 				break;
 			case 'stop':
 				this.outputChannel.appendLine('Webview requesting stop');
-				void Promise.resolve(this.handlers.onStop?.());
+void Promise.resolve(this.handlers.onStop?.()).catch((error) =>
+	this.outputChannel.appendLine(`Webview stop handler failed: ${error instanceof Error ? error.message : String(error)}`)
+);
 				break;
 			case 'clearCache':
 				this.outputChannel.appendLine('Webview requesting cache reset');
-				void Promise.resolve(this.handlers.onClearCache?.());
+void Promise.resolve(this.handlers.onClearCache?.()).catch((error) =>
+	this.outputChannel.appendLine(
+		`Webview clear-cache handler failed: ${error instanceof Error ? error.message : String(error)}`
+	)
+);
 				break;
 		}
 	}
