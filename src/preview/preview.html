@@ -521,9 +521,12 @@
                 },
                 print: function(text) {
                     console.log('[LVGL]', text);
+                    // Forward runtime output (printf / LV_LOG_*) to the VS Code side.
+                    vscode.postMessage({ type: 'log', level: 'log', message: String(text) });
                 },
                 printErr: function(text) {
                     console.error('[LVGL Error]', text);
+                    vscode.postMessage({ type: 'log', level: 'error', message: String(text) });
                 },
                 setStatus: function(text) {
                     if (text) {

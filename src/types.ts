@@ -53,7 +53,8 @@ export type WebviewMessage =
 	| { type: 'ready' }
 	| { type: 'error'; message: string }
 	| { type: 'reload' }
-	| { type: 'saveSettings'; settings: PreviewSettings };
+	| { type: 'saveSettings'; settings: PreviewSettings }
+	| { type: 'log'; level: 'log' | 'error'; message: string };
 
 export type PreviewStatus = 'idle' | 'initializing' | 'compiling' | 'running' | 'error';
 

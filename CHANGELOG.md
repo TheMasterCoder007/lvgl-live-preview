@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Added an in-preview settings panel: a gear button in the top-right corner of the preview window opens a panel for editing all settings without leaving the preview
+- Added an "LVGL Runtime" output channel that shows the previewed app's runtime output (`printf` and `LV_LOG_*` messages) directly in VS Code, instead of only in the webview developer tools console. The channel reveals itself on the first log of each preview session
 
 ### Changed
 - Settings are now owned entirely by the preview and stored by the extension; they no longer appear in the VS Code Settings UI. Existing `lvglPreview.*` values are migrated automatically on first use

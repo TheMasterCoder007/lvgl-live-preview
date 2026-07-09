@@ -21,6 +21,7 @@ LVGL Live Preview is a Visual Studio Code extension that provides real-time prev
 - 🔧 **Custom Defines**: Add global preprocessor defines to your project
 - 💾 **Smart Caching**: Dependency object files are cached and only recompiled when changed
 - 🔍 **Error Reporting**: Inline diagnostics for compilation errors
+- 📝 **Runtime Logs in VS Code**: Your app's `printf` and `LV_LOG_*` output is routed to a dedicated "LVGL Runtime" output channel
 - ♻️ **Reliable Reloading**: Webview recreation ensures clean module reloading on every change
 
 ## Installation
@@ -141,6 +142,17 @@ All settings are managed from the **preview window** — they are stored by the 
 | `LVGL: Stop Preview` | - | Stop the preview and file watcher |
 | `LVGL: Force Rebuild` | - | Force full rebuild including LVGL library |
 | `LVGL: Clear Cache` | - | Clear compiled cache |
+
+## Logging
+
+Anything your code prints — via `printf`, `LV_LOG_USER`, or the other `LV_LOG_*` macros — is routed to the **LVGL Runtime** output channel in VS Code (View → Output, then select "LVGL Runtime" from the dropdown). The channel opens automatically the first time your app logs something in a preview session.
+
+```c
+LV_LOG_USER("Button clicked, value = %d", value);
+printf("Hello from LVGL\n");
+```
+
+Logging uses LVGL's built-in `printf` log target, so no extra setup is required. Note that the default log level is `LV_LOG_LEVEL_WARN`, so `LV_LOG_INFO`/`LV_LOG_TRACE` messages are suppressed while `LV_LOG_USER`, `LV_LOG_WARN`, and `LV_LOG_ERROR` are shown.
 
 ## How It Works
 

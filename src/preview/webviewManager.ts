@@ -16,25 +16,30 @@ import { SettingsManager } from '../utils/settingsManager';
 export class WebviewManager implements vscode.Disposable {
 	private panel: vscode.WebviewPanel | undefined;
 	private outputChannel: vscode.OutputChannel;
+	private logChannel: vscode.OutputChannel;
 	private onReloadCallback?: () => void | Promise<void>;
 	private onSaveSettingsCallback?: (settings: PreviewSettings) => void | Promise<void>;
+	private hasRevealedLogChannel = false;
 
 	/**
 	 * @constructor
 	 * @brief Creates a new WebviewManager instance.
 	 *
 	 * @param context - The VS Code extension context
-	 * @param outputChannel - Output channel for logging
+	 * @param outputChannel - Output channel for extension/build logging
+	 * @param logChannel - Output channel for the previewed app's runtime output (printf / LV_LOG_*)
 	 * @param onReload - Optional callback invoked when reload button is clicked in webview
 	 * @param onSaveSettings - Optional callback invoked when settings are saved in the webview panel
 	 */
 	constructor(
 		private context: vscode.ExtensionContext,
 		outputChannel: vscode.OutputChannel,
+		logChannel: vscode.OutputChannel,
 		onReload?: () => void | Promise<void>,
 		onSaveSettings?: (settings: PreviewSettings) => void | Promise<void>
 	) {
 		this.outputChannel = outputChannel;
+		this.logChannel = logChannel;
 		this.onReloadCallback = onReload;
 		this.onSaveSettingsCallback = onSaveSettings;
 	}
@@ -49,6 +54,12 @@ export class WebviewManager implements vscode.Disposable {
 	 * @param title - The title to display in the webview panel
 	 */
 	public async createOrShow(title: string): Promise<void> {
+		// createOrShow marks the start of a preview session. Reset the reveal guard so
+		// the runtime log channel is revealed again on the first log of this session.
+		// (recreate() - hot reload - deliberately does NOT reset it, so the Output
+		// panel doesn't pop to the front on every file save.)
+		this.hasRevealedLogChannel = false;
+
 		const column =
 			vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn
 				? vscode.window.activeTextEditor.viewColumn + 1
@@ -160,6 +171,31 @@ export class WebviewManager implements vscode.Disposable {
 					void Promise.resolve(this.onSaveSettingsCallback(message.settings));
 				}
 				break;
+			case 'log':
+				this.appendRuntimeLog(message.level, message.message);
+				break;
+		}
+	}
+
+	/**
+	 * @brief Appends a line of the previewed app's runtime output to the log channel.
+	 *
+	 * The first log after a preview session starts reveals the channel (without
+	 * stealing focus) so the output is discoverable. Later logs - including those
+	 * after a hot reload within the same session - just append, so the Output panel
+	 * is not repeatedly forced to the foreground while editing.
+	 *
+	 * @param level - 'error' for stderr output, 'log' otherwise
+	 * @param message - The log text emitted by the app (printf / LV_LOG_*)
+	 */
+	private appendRuntimeLog(level: 'log' | 'error', message: string): void {
+		// Emscripten emits one call per line; trailing newlines would double-space.
+		const text = message.replace(/\r?\n$/, '');
+		this.logChannel.appendLine(level === 'error' ? `[error] ${text}` : text);
+
+		if (!this.hasRevealedLogChannel) {
+			this.hasRevealedLogChannel = true;
+			this.logChannel.show(true);
 		}
 	}
 
