@@ -63,15 +63,29 @@
             cursor: pointer;
             border-radius: 4px;
             font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
 
         .toolbar-button:hover {
             background-color: var(--vscode-button-hoverBackground);
         }
 
+        .toolbar-icon {
+            font-size: 18px;
+            line-height: 1;
+        }
+
         .toolbar-button.active {
             outline: 2px solid var(--vscode-focusBorder, #007fd4);
             outline-offset: -1px;
+        }
+
+        #stop-button:hover {
+            background-color: #c42b1c;
+            color: #ffffff;
         }
 
         #status {
@@ -234,7 +248,13 @@
 
         #settings-actions {
             display: flex;
-            justify-content: flex-end;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .settings-actions-right {
+            display: flex;
             gap: 10px;
         }
 
@@ -250,8 +270,9 @@
 </head>
 <body>
 <div id="toolbar">
-    <button class="toolbar-button" id="reload-button">⟳ Reload</button>
-    <button class="toolbar-button" id="orientation-button" title="Toggle orientation (swap width/height for this session)" aria-label="Toggle orientation" aria-pressed="false">⤢ Rotate</button>
+    <button class="toolbar-button" id="orientation-button" title="Toggle orientation (swap width/height for this session)" aria-label="Toggle orientation" aria-pressed="false"><span class="toolbar-icon" aria-hidden="true">⤢</span>Rotate</button>
+    <button class="toolbar-button" id="reload-button"><span class="toolbar-icon" aria-hidden="true">⟳</span>Reload</button>
+    <button class="toolbar-button" id="stop-button" title="Stop preview and close this window" aria-label="Stop preview"><span class="toolbar-icon" aria-hidden="true">⏹</span>Stop</button>
     <button class="toolbar-button" id="settings-button" title="Settings" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false">⚙</button>
 </div>
 
@@ -264,8 +285,11 @@
         <div id="settings-form"></div>
         <p id="settings-hint">Changes are applied only after you click Save. The preview rebuilds when saved settings change.</p>
         <div id="settings-actions">
-            <button class="toolbar-button settings-secondary" id="settings-cancel">Cancel</button>
-            <button class="toolbar-button" id="settings-save">Save</button>
+            <button class="toolbar-button settings-secondary" id="settings-clear-cache" title="Clear the compiled LVGL cache (forces a full rebuild on next preview)">Reset Cache</button>
+            <div class="settings-actions-right">
+                <button class="toolbar-button settings-secondary" id="settings-cancel">Cancel</button>
+                <button class="toolbar-button" id="settings-save">Save</button>
+            </div>
         </div>
     </div>
 </div>
@@ -476,6 +500,14 @@
             });
         }
 
+        const stopButton = document.getElementById('stop-button');
+        if (stopButton) {
+            stopButton.addEventListener('click', function() {
+                setStatus('Stopping...');
+                vscode.postMessage({ type: 'stop' });
+            });
+        }
+
         // Suppress the browser context menu over the canvas (replaces the inline
         // oncontextmenu attribute, which relied on the deprecated global `event`).
         const canvas = document.getElementById('canvas');
@@ -488,6 +520,10 @@
         document.getElementById('settings-close').addEventListener('click', closeSettings);
         document.getElementById('settings-cancel').addEventListener('click', closeSettings);
         document.getElementById('settings-save').addEventListener('click', saveSettings);
+        document.getElementById('settings-clear-cache').addEventListener('click', function() {
+            closeSettings();
+            vscode.postMessage({ type: 'clearCache' });
+        });
 
         // Clicking the dimmed backdrop (outside the panel) discards and closes.
         document.getElementById('settings-overlay').addEventListener('click', function(event) {

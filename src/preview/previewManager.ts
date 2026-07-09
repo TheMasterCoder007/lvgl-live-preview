@@ -72,20 +72,27 @@ export class PreviewManager implements vscode.Disposable {
 			// Create a webview if it does not exist
 			if (!this.webviewManager) {
 				this.outputChannel.appendLine('[PreviewManager] Creating webview manager...');
-				this.webviewManager = new WebviewManager(
-					this.context,
-					this.outputChannel,
-					this.logChannel,
-					async () => {
+				this.webviewManager = new WebviewManager(this.context, this.outputChannel, this.logChannel, {
+					onReload: async () => {
 						await this.rebuild();
 					},
-					async (settings) => {
+					onSaveSettings: async (settings) => {
 						await this.saveSettings(settings);
 					},
-					async () => {
+					onToggleOrientation: async () => {
 						await this.toggleOrientation();
-					}
-				);
+					},
+					onStop: async () => {
+						// Route through the stop command so the status bar is reset too.
+						// stopPreview() disposes the webview panel, closing the window.
+						await vscode.commands.executeCommand('lvgl-preview.stop');
+					},
+					onClearCache: async () => {
+						// Reset the cache and rebuild: the rebuild command clears the
+						// cache and then recompiles/reloads the preview.
+						await vscode.commands.executeCommand('lvgl-preview.rebuild');
+					},
+				});
 			}
 
 			// Show webview
