@@ -16,6 +16,7 @@ LVGL Live Preview is a Visual Studio Code extension that provides real-time prev
 - ⚙️ **Configurable**: Customize display size, LVGL version, and compiler optimization
 - 🛠️ **In-Preview Settings**: Adjust all settings from a settings panel in the preview window — changes apply only when you click **Save**
 - 🔀 **Orientation Toggle**: A **Rotate** button swaps display width/height (portrait ⇄ landscape) for the current session, without changing your saved settings
+- 🔍 **Fit to Window**: The preview scales to fit the window (up or down) while preserving aspect ratio; can be toggled off in settings
 - 📦 **Zero Setup**: Emscripten SDK is downloaded and installed automatically
 - 🎯 **Single or Multi-File**: Works with single C files or multi-file projects with dependencies
 - 📁 **Dependency Management**: Configure dependencies via `.lvgl-live-preview.json` with incremental compilation
@@ -129,6 +130,7 @@ All settings are managed from the **preview window** — they are stored by the 
 | LVGL Version | `9.4.0` | LVGL library version to use |
 | Display Width | `480`   | Display width in pixels |
 | Display Height | `320`   | Display height in pixels |
+| Scale preview to fit the window | `true` | Scale the preview to fit the window while preserving aspect ratio (scales up or down) |
 | Emscripten Optimization | `-O1`   | Emscripten optimization level (-O0, -O1, -O2, -O3, -Os, -Oz) |
 | Auto Reload | `true`  | Automatically reload preview on file changes |
 | Debounce Delay | `100`   | Delay in ms before recompiling after file changes |

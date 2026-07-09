@@ -38,6 +38,7 @@ export class SettingsManager {
 		debounceDelay: 100,
 		lvglMemorySize: 256,
 		wasmMemorySize: 128,
+		fitToWindow: true,
 	};
 
 	/**
@@ -171,6 +172,29 @@ export class SettingsManager {
 	}
 
 	/**
+	 * @brief Resets stored settings back to the defaults.
+	 *
+	 * Overwrites the persisted settings with a fresh copy of the defaults (rather than
+	 * clearing the key) so any legacy VS Code configuration is not re-migrated.
+	 *
+	 * @param context The extension context (provides global state).
+	 * @returns The list of keys whose value changed as a result of the reset.
+	 */
+	public static async resetSettings(
+		context: vscode.ExtensionContext
+	): Promise<(keyof PreviewSettings)[]> {
+		const current = this.getSettings(context);
+		const defaults: PreviewSettings = { ...this.DEFAULTS };
+
+		const changed = (Object.keys(defaults) as (keyof PreviewSettings)[]).filter(
+			(key) => defaults[key] !== current[key]
+		);
+
+		await context.globalState.update(this.STORAGE_KEY, defaults);
+		return changed;
+	}
+
+	/**
 	 * @brief Reads settings from legacy VS Code configuration for migration.
 	 *
 	 * VS Code still returns values present in a user's/workspace settings.json even
@@ -190,6 +214,7 @@ export class SettingsManager {
 			debounceDelay: config.get<number>('debounceDelay', this.DEFAULTS.debounceDelay),
 			lvglMemorySize: config.get<number>('lvglMemorySize', this.DEFAULTS.lvglMemorySize),
 			wasmMemorySize: config.get<number>('wasmMemorySize', this.DEFAULTS.wasmMemorySize),
+			fitToWindow: config.get<boolean>('fitToWindow', this.DEFAULTS.fitToWindow),
 		};
 	}
 }
