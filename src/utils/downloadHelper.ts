@@ -21,8 +21,9 @@ export type ProgressCallback = (percent: number) => void;
  * @param {string} url - The URL to download from.
  * @param {string} destPath - The local file path to save the download.
  * @param {ProgressCallback} onProgress - Callback invoked with download progress percentage.
+ * @param {AbortSignal} [signal] - Optional signal to cancel the download in progress.
  * @returns {Promise<void>} Resolves when download completes successfully.
- * @throws {Error} If the download fails or receives a non-200 response.
+ * @throws {Error} If the download fails, receives a non-200 response, or is canceled.
  *
  * @example
  * await downloadFile(
@@ -31,28 +32,46 @@ export type ProgressCallback = (percent: number) => void;
  *   (percent) => console.log(`Downloaded: ${percent}%`)
  * );
  */
-export async function downloadFile(url: string, destPath: string, onProgress: ProgressCallback): Promise<void> {
+export async function downloadFile(
+	url: string,
+	destPath: string,
+	onProgress: ProgressCallback,
+	signal?: AbortSignal
+): Promise<void> {
 	return new Promise((resolve, reject) => {
+		const cleanup = (): void => {
+			if (fs.existsSync(destPath)) {
+				try {
+					fs.unlinkSync(destPath);
+				} catch {
+					// Ignore cleanup failures
+				}
+			}
+		};
+
+		if (signal?.aborted) {
+			reject(new Error('Download cancelled'));
+			return;
+		}
+
 		const file = fs.createWriteStream(destPath);
 
-		https
+		const request = https
 			.get(url, (response) => {
 				// Handle redirects
 				if (response.statusCode === 302 || response.statusCode === 301) {
 					const redirectUrl = response.headers.location;
 					if (redirectUrl) {
 						file.close();
-						fs.unlinkSync(destPath);
-						downloadFile(redirectUrl, destPath, onProgress).then(resolve).catch(reject);
+						cleanup();
+						downloadFile(redirectUrl, destPath, onProgress, signal).then(resolve).catch(reject);
 						return;
 					}
 				}
 
 				if (response.statusCode !== 200) {
 					file.close();
-					if (fs.existsSync(destPath)) {
-						fs.unlinkSync(destPath);
-					}
+					cleanup();
 					reject(new Error(`Failed to download: ${response.statusCode}`));
 					return;
 				}
@@ -77,10 +96,22 @@ export async function downloadFile(url: string, destPath: string, onProgress: Pr
 			})
 			.on('error', (err) => {
 				file.close();
-				if (fs.existsSync(destPath)) {
-					fs.unlinkSync(destPath);
-				}
+				cleanup();
 				reject(err);
 			});
+
+		// Cancel the in-flight download when the signal aborts.
+		if (signal) {
+			signal.addEventListener(
+				'abort',
+				() => {
+					request.destroy();
+					file.close();
+					cleanup();
+					reject(new Error('Download cancelled'));
+				},
+				{ once: true }
+			);
+		}
 	});
 }

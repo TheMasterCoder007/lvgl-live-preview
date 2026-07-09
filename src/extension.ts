@@ -95,12 +95,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				if (!isInstalled) {
 					const result = await vscode.window.showInformationMessage(
-						'Emscripten SDK is required but not installed. Download now? (This is a one-time setup, ~200MB)',
-						'Download',
+						'The Emscripten toolchain is required but not installed. This one-time setup downloads and ' +
+							'installs it (~1–2 GB on disk) and requires Python 3 on your PATH. The first preview also ' +
+							'downloads the SDL2 port. Install now?',
+						'Install',
 						'Cancel'
 					);
 
-					if (result === 'Download') {
+					if (result === 'Install') {
 						await emsdkInstaller.installEmsdk();
 					} else {
 						statusBarManager?.setStatus('idle');
@@ -111,6 +113,14 @@ export async function activate(context: vscode.ExtensionContext) {
 				await previewManager?.startPreview(editor.document.uri);
 				statusBarManager?.setStatus('running');
 			} catch (error: unknown) {
+				// Cancellation (e.g. cancelling the toolchain install) is not an error.
+				if (error instanceof vscode.CancellationError) {
+					outputChannel.appendLine('Preview startup cancelled.');
+					statusBarManager?.setStatus('idle');
+					void vscode.window.showInformationMessage('LVGL Preview setup cancelled.');
+					return;
+				}
+
 				statusBarManager?.setStatus('error');
 				const errorMessage = error instanceof Error ? error.message : String(error);
 				const errorStack = error instanceof Error ? error.stack : '';
@@ -155,6 +165,83 @@ export async function activate(context: vscode.ExtensionContext) {
 			vscode.window.showInformationMessage('LVGL Preview cache cleared');
 		})
 	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('lvgl-preview.checkSetup', async () => {
+			await runSetupCheck(context);
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('lvgl-preview.reinstallToolchain', async () => {
+			const choice = await vscode.window.showWarningMessage(
+				'Reinstall the Emscripten toolchain? This deletes the current install (~1–2 GB) and downloads it again.',
+				{ modal: true },
+				'Reinstall'
+			);
+			if (choice !== 'Reinstall') {
+				return;
+			}
+
+			const emsdkInstaller = new EmsdkInstaller(context, outputChannel);
+			try {
+				outputChannel.show(true);
+				await emsdkInstaller.reinstall();
+			} catch (error: unknown) {
+				if (error instanceof vscode.CancellationError) {
+					void vscode.window.showInformationMessage('Emscripten reinstall cancelled.');
+					return;
+				}
+				const message = error instanceof Error ? error.message : String(error);
+				void vscode.window.showErrorMessage(`Failed to reinstall Emscripten toolchain: ${message}`);
+			}
+		})
+	);
+}
+
+/**
+ * @brief Runs the setup diagnostics ("doctor") and reports the results.
+ *
+ * Writes a detailed report to the output channel and shows a summary notification.
+ *
+ * @param context - The extension context.
+ */
+async function runSetupCheck(context: vscode.ExtensionContext): Promise<void> {
+	outputChannel.show(true);
+	outputChannel.appendLine('='.repeat(60));
+	outputChannel.appendLine('LVGL Preview — Setup Check');
+	outputChannel.appendLine('='.repeat(60));
+
+	const emsdkInstaller = new EmsdkInstaller(context, outputChannel);
+	const diagnostics = await vscode.window.withProgress(
+		{ location: vscode.ProgressLocation.Notification, title: 'LVGL: checking setup...', cancellable: false },
+		() => emsdkInstaller.getDiagnostics()
+	);
+
+	const icon = { pass: '✓', warn: '⚠', fail: '✗' };
+	for (const d of diagnostics) {
+		outputChannel.appendLine(`${icon[d.status]} ${d.name}: ${d.detail}`);
+	}
+	outputChannel.appendLine('='.repeat(60));
+
+	const failures = diagnostics.filter((d) => d.status === 'fail');
+	const warnings = diagnostics.filter((d) => d.status === 'warn');
+
+	if (failures.length === 0 && warnings.length === 0) {
+		void vscode.window.showInformationMessage('LVGL Preview setup looks good — all checks passed.');
+	} else {
+		const parts = [
+			...failures.map((d) => `✗ ${d.name}`),
+			...warnings.map((d) => `⚠ ${d.name}`),
+		];
+		const action = await vscode.window.showWarningMessage(
+			`LVGL Preview setup issues: ${parts.join(', ')}. See the LVGL Preview output for details.`,
+			'Show Output'
+		);
+		if (action === 'Show Output') {
+			outputChannel.show(true);
+		}
+	}
 }
 
 async function showWelcomeMessage() {

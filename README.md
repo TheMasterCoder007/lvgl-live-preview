@@ -51,7 +51,7 @@ Then press F5 to run the extension in development mode.
 1. Create a new C file with LVGL code
 2. Define a `lvgl_live_preview_init()` function wrapped in `#ifdef LVGL_LIVE_PREVIEW` (required entry point)
 3. Press `Ctrl+Shift+L` or run "LVGL: Start Live Preview" from the command palette
-4. Wait for Emscripten to download (first time only, ~200MB)
+4. Wait for the Emscripten toolchain to install (first time only; downloads and installs ~1–2 GB and requires Python 3 on your PATH). The very first preview also downloads the SDL2 port.
 5. Your LVGL UI will appear in a webview panel!
 
 ### Example Code
@@ -75,7 +75,9 @@ void lvgl_live_preview_init(void) {
 
 ## Requirements
 
-- **Python**: Python must be installed and available in your system PATH. The extension requires Python to install and configure the Emscripten SDK. [Download Python](https://www.python.org/downloads/)
+- **Python 3**: Must be installed and on your system PATH. It is required both to install the Emscripten SDK and to run `emcc` (which is a Python program), so it is needed for every build, not just setup. [Download Python](https://www.python.org/downloads/)
+- **Disk space**: The Emscripten toolchain installs to the extension's storage and needs ~1–2 GB free. It is pinned to a specific, tested version for reproducible builds.
+- **Setup diagnostics**: Run **LVGL: Check Setup** from the Command Palette to verify Python, Emscripten, disk space, and network connectivity.
 - **Required Entry Point**: Your main C file must define a `void lvgl_live_preview_init(void)` function wrapped in `#ifdef LVGL_LIVE_PREVIEW`. This is where you initialize your LVGL UI. The `LVGL_LIVE_PREVIEW` define is automatically provided by the extension during compilation, ensuring the function is only visible when using the live preview feature.
 - **LVGL API**: Use standard LVGL API calls. The extension supports LVGL v8.x and v9.x.
 
@@ -145,6 +147,8 @@ All settings are managed from the **preview window** — they are stored by the 
 | `LVGL: Stop Preview` | - | Stop the preview and file watcher |
 | `LVGL: Force Rebuild` | - | Force full rebuild including LVGL library |
 | `LVGL: Clear Cache` | - | Clear compiled cache |
+| `LVGL: Check Setup` | - | Diagnose the environment (Python, Emscripten, disk space, network) |
+| `LVGL: Reinstall Emscripten Toolchain` | - | Delete and reinstall the Emscripten toolchain |
 
 ## Logging
 

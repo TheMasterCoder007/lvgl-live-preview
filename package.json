@@ -51,6 +51,16 @@
 				"command": "lvgl-preview.clearCache",
 				"title": "LVGL: Clear Cache",
 				"category": "LVGL Preview"
+			},
+			{
+				"command": "lvgl-preview.checkSetup",
+				"title": "LVGL: Check Setup",
+				"category": "LVGL Preview"
+			},
+			{
+				"command": "lvgl-preview.reinstallToolchain",
+				"title": "LVGL: Reinstall Emscripten Toolchain",
+				"category": "LVGL Preview"
 			}
 		],
 		"keybindings": [

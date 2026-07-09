@@ -15,8 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a "Reset Cache" button to the settings panel that clears the compiled LVGL cache and rebuilds the preview (equivalent to the "LVGL: Force Rebuild" command)
 - Added a "Reset to Defaults" button to the settings panel that restores all settings to their defaults (after a confirmation prompt)
 - Added a "Scale preview to fit the window" setting (enabled by default) that scales the preview to fit the available area while keeping its aspect ratio — scaling down in a small window and up in a large one. It updates live as the window is resized
+- Added an "LVGL: Check Setup" command that diagnoses the environment (Python, Emscripten toolchain, free disk space, and network) and reports exactly what is missing
+- Added an "LVGL: Reinstall Emscripten Toolchain" command that deletes and cleanly re-installs the toolchain (useful after a failed or partial install)
 
 ### Changed
+- The Emscripten toolchain version (3.1.50) is now pinned explicitly in code rather than relying on the emsdk installer's `latest` alias, so the installed version stays fixed even if the bundled emsdk release is bumped later
+- The toolchain installation is now cancellable and cleans up partial installations on cancellation or failure, so a retry always starts from a clean state
+- The first build now shows progress while the SDL2 port downloads/compiles (a one-time step that previously looked like a hang), and the install prompt now states the real ~1–2 GB toolchain size and Python requirement
 - Settings are now owned entirely by the preview and stored by the extension; they no longer appear in the VS Code Settings UI. Existing `lvglPreview.*` values are migrated automatically on first use
 - The preview rebuilds/reloads only when settings are saved and only once per save regardless of how many fields were edited. Closing the popup without saving will keep the old settings.
 - Removed the per-field reload that occurred when editing settings through the VS Code Settings UI
