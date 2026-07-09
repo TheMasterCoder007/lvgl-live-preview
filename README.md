@@ -14,6 +14,7 @@ LVGL Live Preview is a Visual Studio Code extension that provides real-time prev
 - 🔄 **Hot Reload**: Automatic recompilation and refresh on file save with full WASM module reloading
 - 🎨 **Interactive**: Full mouse/touch input support
 - ⚙️ **Configurable**: Customize display size, LVGL version, and compiler optimization
+- 🛠️ **In-Preview Settings**: Adjust all settings from a settings panel in the preview window — changes apply only when you click **Save**
 - 📦 **Zero Setup**: Emscripten SDK is downloaded and installed automatically
 - 🎯 **Single or Multi-File**: Works with single C files or multi-file projects with dependencies
 - 📁 **Dependency Management**: Configure dependencies via `.lvgl-live-preview.json` with incremental compilation
@@ -115,18 +116,22 @@ For projects with multiple C files, create a `.lvgl-live-preview.json` file at y
 
 ## Configuration
 
-Access settings via `File > Preferences > Settings` and search for "LVGL Preview":
+All settings are managed from the **preview window** — they are stored by the extension itself and do **not** appear in the VS Code Settings UI. Click the gear button in the top-right corner of the preview to open the settings panel. Edit any value and click **Save** to apply.
+
+- Changes are **only** applied when you click Save. Closing the panel (via Cancel, the ✕, `Esc`, or clicking outside it) discards your edits and leaves the current settings untouched.
+- The preview rebuilds and reloads **only** when saved — and only once per Save, no matter how many fields you edited.
+- Settings persist across sessions. If you used an earlier version that stored these under `lvglPreview.*` in VS Code settings, your values are migrated automatically the first time you open the panel.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `lvglPreview.lvglVersion` | `9.4.0` | LVGL library version to use |
-| `lvglPreview.displayWidth` | `480`   | Display width in pixels |
-| `lvglPreview.displayHeight` | `320`   | Display height in pixels |
-| `lvglPreview.emccOptimization` | `-O1`   | Emscripten optimization level (-O0, -O1, -O2, -O3, -Os, -Oz) |
-| `lvglPreview.autoReload` | `true`  | Automatically reload preview on file changes |
-| `lvglPreview.debounceDelay` | `100`   | Delay in ms before recompiling after file changes |
-| `lvglPreview.lvglMemorySize` | `256`   | LVGL internal heap memory size in KB (64, 128, 256, 512, 1024, 2048) |
-| `lvglPreview.wasmMemorySize` | `128`   | WebAssembly total memory size in MB (64, 128, 256, 512, 1024) |
+| LVGL Version | `9.4.0` | LVGL library version to use |
+| Display Width | `480`   | Display width in pixels |
+| Display Height | `320`   | Display height in pixels |
+| Emscripten Optimization | `-O1`   | Emscripten optimization level (-O0, -O1, -O2, -O3, -Os, -Oz) |
+| Auto Reload | `true`  | Automatically reload preview on file changes |
+| Debounce Delay | `100`   | Delay in ms before recompiling after file changes |
+| LVGL Memory Size | `256`   | LVGL internal heap memory size in KB (64, 128, 256, 512, 1024, 2048) |
+| WASM Memory Size | `128`   | WebAssembly total memory size in MB (64, 128, 256, 512, 1024) |
 
 ## Commands
 

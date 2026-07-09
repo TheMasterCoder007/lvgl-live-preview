@@ -123,12 +123,14 @@ export class DependencyCache {
 	 * @returns Hex-encoded hash string
 	 */
 	private computeSettingsHash(settings: CompilationSettings): string {
-		// Sort arrays for consistent hashing
+		// Sort arrays for consistent hashing.
+		// Note: wasmMemorySize is intentionally excluded - it is a link-time flag
+		// (INITIAL_MEMORY) that is never baked into a dependency object file, so
+		// changing it must not invalidate the dependency cache.
 		const normalized = {
 			lvglVersion: settings.lvglVersion,
 			optimization: settings.optimization,
 			lvglMemorySize: settings.lvglMemorySize,
-			wasmMemorySize: settings.wasmMemorySize,
 			includePaths: [...settings.includePaths].sort(),
 			defines: [...settings.defines].sort(),
 		};

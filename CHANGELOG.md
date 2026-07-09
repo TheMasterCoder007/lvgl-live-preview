@@ -5,6 +5,27 @@ All notable changes to the LVGL Live Preview extension will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Added an in-preview settings panel: a gear button in the top-right corner of the preview window opens a panel for editing all settings without leaving the preview
+
+### Changed
+- Settings are now owned entirely by the preview and stored by the extension; they no longer appear in the VS Code Settings UI. Existing `lvglPreview.*` values are migrated automatically on first use
+- The preview rebuilds/reloads only when settings are saved and only once per save regardless of how many fields were edited. Closing the popup without saving will keep the old settings.
+- Removed the per-field reload that occurred when editing settings through the VS Code Settings UI
+
+### Performance
+- Settings changes now rebuild only what is actually affected instead of always rebuilding the whole LVGL library. Changing the display dimensions or WASM memory size now only relinks (the LVGL library is reused); changing the LVGL version, optimization level, or LVGL heap size rebuilds the library, but the result is cached, so switching values back is instant
+- Saving settings no longer clears the entire build cache; the LVGL library and dependency caches self-invalidate based on the settings that actually affect their output (use "LVGL: Force Rebuild" for a full clean rebuild)
+
+### Fixed
+- Fixed `lvglMemorySize` and `wasmMemorySize` changes not triggering a rebuild of the running preview
+- Fixed keyboard entry being blocked in the settings panel by scoping SDL's keyboard capture to the preview canvas
+
+### Security
+- Updated dependencies of the project to resolve security vulnerabilities as reported by npm audit
+
 ## [1.1.2] - 2026-02-01
 
 ### Fixed

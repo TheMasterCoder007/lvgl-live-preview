@@ -4,6 +4,8 @@ import * as fs from 'fs';
 import { CompilationManager } from '../compiler/compilationManager';
 import { FileWatcher } from '../watcher/fileWatcher';
 import { WebviewManager } from './webviewManager';
+import { SettingsManager } from '../utils/settingsManager';
+import { PreviewSettings } from '../types';
 
 /**
  * @class PreviewManager
@@ -62,9 +64,16 @@ export class PreviewManager implements vscode.Disposable {
 			// Create a webview if it does not exist
 			if (!this.webviewManager) {
 				this.outputChannel.appendLine('[PreviewManager] Creating webview manager...');
-				this.webviewManager = new WebviewManager(this.context, this.outputChannel, async () => {
-					await this.rebuild();
-				});
+				this.webviewManager = new WebviewManager(
+					this.context,
+					this.outputChannel,
+					async () => {
+						await this.rebuild();
+					},
+					async (settings) => {
+						await this.saveSettings(settings);
+					}
+				);
 			}
 
 			// Show webview
@@ -76,42 +85,8 @@ export class PreviewManager implements vscode.Disposable {
 			this.outputChannel.appendLine('[PreviewManager] Starting compilation...');
 			await this.compileAndUpdate(fileUri);
 
-			// Start watching files for changes
-			const config = vscode.workspace.getConfiguration('lvglPreview');
-			const autoReload = config.get<boolean>('autoReload', true);
-			const debounceDelay = config.get<number>('debounceDelay', 300);
-
-			if (autoReload) {
-				// Dispose existing file watcher if present to prevent duplicates
-				if (this.fileWatcher) {
-					this.outputChannel.appendLine('[PreviewManager] Disposing existing file watcher');
-					this.fileWatcher.dispose();
-					this.fileWatcher = undefined;
-				}
-
-				this.fileWatcher = new FileWatcher(async (uri) => {
-					this.outputChannel.appendLine(`File changed: ${uri.fsPath}`);
-					await this.compileAndUpdate(fileUri, true); // Always use original fileUri for compilation
-				}, debounceDelay);
-
-				// Check if we have a project config with dependencies
-				const projectConfig = this.compilationManager.getCurrentConfig();
-				if (projectConfig) {
-					// Watch main file and all dependencies
-					const filesToWatch = [
-						vscode.Uri.file(projectConfig.mainFile),
-						...projectConfig.dependencies.map((dep) => vscode.Uri.file(dep)),
-					];
-					this.fileWatcher.watchFiles(filesToWatch);
-					this.outputChannel.appendLine(
-						`[PreviewManager] File watcher started for ${filesToWatch.length} files`
-					);
-				} else {
-					// Single file mode
-					this.fileWatcher.watchFile(fileUri);
-					this.outputChannel.appendLine('[PreviewManager] File watcher started');
-				}
-			}
+			// Start watching files for changes (honors autoReload/debounceDelay settings)
+			this.startFileWatcher();
 
 			this.outputChannel.appendLine('[PreviewManager] Preview started successfully');
 		} catch (error: unknown) {
@@ -223,6 +198,126 @@ export class PreviewManager implements vscode.Disposable {
 	public async rebuild(): Promise<void> {
 		if (this.currentFile) {
 			await this.compileAndUpdate(this.currentFile, true);
+		}
+	}
+
+	/**
+	 * @brief Settings that are baked into the compiled output and require a rebuild.
+	 */
+	private static readonly REBUILD_KEYS: (keyof PreviewSettings)[] = [
+		'displayWidth',
+		'displayHeight',
+		'emccOptimization',
+		'lvglVersion',
+		'lvglMemorySize',
+		'wasmMemorySize',
+	];
+
+	/**
+	 * @brief Settings that only affect how source files are watched.
+	 */
+	private static readonly WATCHER_KEYS: (keyof PreviewSettings)[] = ['autoReload', 'debounceDelay'];
+
+	/**
+	 * @brief Persists settings from the in-webview settings panel and applies them.
+	 *
+	 * This is the single point at which saved settings take effect. Because settings
+	 * live in the extension's own storage (not VS Code configuration), nothing reacts
+	 * to individual field edits - the preview only rebuilds/reloads here, when the
+	 * user clicks Save, and only for the settings that actually changed.
+	 *
+	 * @param settings - The settings selected in the webview panel.
+	 */
+	public async saveSettings(settings: PreviewSettings): Promise<void> {
+		const changed = await SettingsManager.saveSettings(this.context, settings);
+
+		if (changed.length === 0) {
+			this.outputChannel.appendLine('[PreviewManager] Settings saved (no changes)');
+			this.refreshSettings();
+			return;
+		}
+
+		this.outputChannel.appendLine(`[PreviewManager] Settings saved, changed: ${changed.join(', ')}`);
+
+		const needsRebuild = changed.some((key) => PreviewManager.REBUILD_KEYS.includes(key));
+		const needsWatcherRestart = changed.some((key) => PreviewManager.WATCHER_KEYS.includes(key));
+
+		if (needsRebuild) {
+			// Compile-affecting settings changed: rebuild. We intentionally do NOT
+			// clear the cache here - the LVGL library and dependency caches are keyed
+			// on the settings that actually affect their output, so they rebuild only
+			// what changed (e.g., changing display dimensions reuses the cached library
+			// and only relinks). rebuild() recreates the webview, which re-requests
+			// settings on load.
+			await this.rebuild();
+		} else {
+			// No rebuild: make sure the panel reflects the persisted values.
+			this.refreshSettings();
+		}
+
+		if (needsWatcherRestart) {
+			// Re-create the watcher so new autoReload/debounceDelay values take effect.
+			this.startFileWatcher();
+		}
+	}
+
+	/**
+	 * @brief Re-sends the current settings to the webview settings panel.
+	 *
+	 * Keeps the panel in sync when settings change without recreating the webview
+	 * (e.g., a save that only affects the file watcher).
+	 */
+	public refreshSettings(): void {
+		this.webviewManager?.sendSettings();
+	}
+
+	/**
+	 * @brief Creates (or re-creates) the file watcher based on current settings.
+	 *
+	 * Any existing watcher is disposed of first. When autoReload is disabled, no watcher
+	 * is created. In project-config mode the main file and all dependencies are
+	 * watched; otherwise the single previewed file is watched.
+	 */
+	private startFileWatcher(): void {
+		if (!this.currentFile) {
+			return;
+		}
+
+		// Dispose any existing watcher to avoid duplicates / stale debounce values.
+		if (this.fileWatcher) {
+			this.outputChannel.appendLine('[PreviewManager] Disposing existing file watcher');
+			this.fileWatcher.dispose();
+			this.fileWatcher = undefined;
+		}
+
+		const settings = SettingsManager.getSettings(this.context);
+		if (!settings.autoReload) {
+			this.outputChannel.appendLine('[PreviewManager] Auto reload disabled; file watcher not started');
+			return;
+		}
+
+		const fileUri = this.currentFile;
+		this.fileWatcher = new FileWatcher(async (uri) => {
+			this.outputChannel.appendLine(`File changed: ${uri.fsPath}`);
+			await this.compileAndUpdate(fileUri, true); // Always use original fileUri for compilation
+		}, settings.debounceDelay);
+
+		// Check if we have a project config with dependencies
+		const projectConfig = this.compilationManager.getCurrentConfig();
+		if (projectConfig) {
+			// Watch main file and all dependencies
+			const filesToWatch = [
+				vscode.Uri.file(projectConfig.mainFile),
+				...projectConfig.dependencies.map((dep) => vscode.Uri.file(dep)),
+			];
+			this.fileWatcher.watchFiles(filesToWatch);
+			this.outputChannel.appendLine(
+				`[PreviewManager] File watcher started for ${filesToWatch.length} files`
+			);
+		} else {
+			// Single file mode
+			this.fileWatcher.watchFile(fileUri);
+			this.outputChannel.appendLine('[PreviewManager] File watcher started');
 		}
 	}
 

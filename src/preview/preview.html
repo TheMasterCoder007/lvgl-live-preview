@@ -24,6 +24,13 @@
             --vscode-inputValidation-errorForeground: initial;
             --vscode-inputValidation-errorBorder: initial;
             --vscode-editor-font-family: initial;
+            --vscode-toolbar-hoverBackground: initial;
+            --vscode-input-background: initial;
+            --vscode-input-foreground: initial;
+            --vscode-input-border: initial;
+            --vscode-button-secondaryBackground: initial;
+            --vscode-button-secondaryForeground: initial;
+            --vscode-button-secondaryHoverBackground: initial;
         }
         body {
             margin: 0;
@@ -123,11 +130,137 @@
         .hidden {
             display: none !important;
         }
+
+        #settings-button {
+            font-size: 24px;
+            line-height: 1;
+            padding: 8px 12px;
+        }
+
+        #settings-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 60px 20px 20px;
+            z-index: 2000;
+            overflow-y: auto;
+        }
+
+        #settings-panel {
+            background-color: var(--vscode-editor-background, #1e1e1e);
+            color: var(--vscode-editor-foreground, #cccccc);
+            border: 1px solid var(--vscode-panel-border, #454545);
+            border-radius: 8px;
+            width: 100%;
+            max-width: 420px;
+            padding: 20px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        #settings-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        #settings-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .settings-close {
+            background: transparent;
+            color: inherit;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .settings-close:hover {
+            background-color: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+        }
+
+        .settings-row {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 14px;
+        }
+
+        .settings-row label {
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .settings-row input[type="text"],
+        .settings-row select {
+            background-color: var(--vscode-input-background, #2a2a2a);
+            color: var(--vscode-input-foreground, #cccccc);
+            border: 1px solid var(--vscode-input-border, #555555);
+            border-radius: 4px;
+            padding: 6px 8px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+
+        .settings-row.settings-checkbox {
+            flex-direction: row;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .settings-row.settings-checkbox label {
+            order: 2;
+            font-weight: 400;
+        }
+
+        #settings-hint {
+            font-size: 11px;
+            opacity: 0.7;
+            margin: 4px 0 16px;
+        }
+
+        #settings-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .settings-secondary {
+            background-color: var(--vscode-button-secondaryBackground, #3a3d41);
+            color: var(--vscode-button-secondaryForeground, #cccccc);
+        }
+
+        .settings-secondary:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground, #45494e);
+        }
     </style>
 </head>
 <body>
 <div id="toolbar">
     <button class="toolbar-button" id="reload-button">⟳ Reload</button>
+    <button class="toolbar-button" id="settings-button" title="Settings" aria-label="Settings">⚙</button>
+</div>
+
+<div id="settings-overlay" class="hidden">
+    <div id="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div id="settings-header">
+            <span id="settings-title">Preview Settings</span>
+            <button class="settings-close" id="settings-close" title="Close" aria-label="Close">✕</button>
+        </div>
+        <div id="settings-form"></div>
+        <p id="settings-hint">Changes are applied only after you click Save. The preview rebuilds when saved settings change.</p>
+        <div id="settings-actions">
+            <button class="toolbar-button settings-secondary" id="settings-cancel">Cancel</button>
+            <button class="toolbar-button" id="settings-save">Save</button>
+        </div>
+    </div>
 </div>
 
 <div id="status">Waiting for compilation...</div>
@@ -138,7 +271,7 @@
 </div>
 
 <div id="canvas-container" class="hidden">
-    <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    <canvas id="canvas" tabindex="-1"></canvas>
 </div>
 
 <div id="error"></div>
@@ -149,7 +282,153 @@
 
     vscode.postMessage({ type: 'ready' });
 
-    // Set up reload button event listener
+    // --- Settings panel state -------------------------------------------------
+
+    // Last settings/options received from the extension. The panel is edited on a
+    // local copy so that closing without saving discards any changes.
+    let currentSettings = null;
+    let currentOptions = null;
+    const settingsInputs = {};
+
+    // Declarative description of each editable setting. `optionsKey` refers to a
+    // list provided by the extension in the `updateSettings` message.
+    const SETTINGS_FIELDS = [
+        { key: 'lvglVersion', label: 'LVGL Version', type: 'select', optionsKey: 'lvglVersions' },
+        { key: 'emccOptimization', label: 'Emscripten Optimization', type: 'select', optionsKey: 'optimizations' },
+        { key: 'displayWidth', label: 'Display Width (px)', type: 'number' },
+        { key: 'displayHeight', label: 'Display Height (px)', type: 'number' },
+        { key: 'lvglMemorySize', label: 'LVGL Memory Size', type: 'select', optionsKey: 'lvglMemorySizes', suffix: ' KB' },
+        { key: 'wasmMemorySize', label: 'WASM Memory Size', type: 'select', optionsKey: 'wasmMemorySizes', suffix: ' MB' },
+        { key: 'autoReload', label: 'Auto reload on file changes', type: 'checkbox' },
+        { key: 'debounceDelay', label: 'Debounce Delay (ms)', type: 'number' }
+    ];
+
+    function buildSettingsForm(settings, options) {
+        const form = document.getElementById('settings-form');
+        form.textContent = '';
+        for (const key of Object.keys(settingsInputs)) {
+            delete settingsInputs[key];
+        }
+
+        SETTINGS_FIELDS.forEach(function(field) {
+            const row = document.createElement('div');
+            row.className = 'settings-row';
+
+            const label = document.createElement('label');
+            label.textContent = field.label;
+            label.setAttribute('for', 'setting-' + field.key);
+
+            let input;
+            if (field.type === 'select') {
+                input = document.createElement('select');
+                const values = (options && options[field.optionsKey]) || [];
+                const currentValue = String(settings[field.key]);
+
+                // If the stored value isn't one of the known options (e.g., migrated
+                // from an older version, or an option that was later removed), inject
+                // it as a selectable entry so the panel shows the real value and Save
+                // never silently overwrites it.
+                const knownValues = values.map(function(value) { return String(value); });
+                if (currentValue !== '' && knownValues.indexOf(currentValue) === -1) {
+                    const currentOpt = document.createElement('option');
+                    currentOpt.value = currentValue;
+                    currentOpt.textContent = currentValue + ' (unsupported)';
+                    input.appendChild(currentOpt);
+                }
+
+                values.forEach(function(value) {
+                    const opt = document.createElement('option');
+                    opt.value = String(value);
+                    opt.textContent = field.suffix ? (value + field.suffix) : String(value);
+                    input.appendChild(opt);
+                });
+                input.value = currentValue;
+            } else if (field.type === 'checkbox') {
+                row.classList.add('settings-checkbox');
+                input = document.createElement('input');
+                input.type = 'checkbox';
+                input.checked = Boolean(settings[field.key]);
+            } else {
+                // Text entry that only accepts digits
+                input = document.createElement('input');
+                input.type = 'text';
+                input.inputMode = 'numeric';
+                input.setAttribute('pattern', '[0-9]*');
+                input.value = String(settings[field.key]);
+                input.addEventListener('input', function() {
+                    const cleaned = this.value.replace(/[^0-9]/g, '');
+                    if (this.value !== cleaned) {
+                        this.value = cleaned;
+                    }
+                });
+            }
+
+            input.id = 'setting-' + field.key;
+            settingsInputs[field.key] = input;
+
+            if (field.type === 'checkbox') {
+                row.appendChild(input);
+                row.appendChild(label);
+            } else {
+                row.appendChild(label);
+                row.appendChild(input);
+            }
+            form.appendChild(row);
+        });
+    }
+
+    function gatherSettings() {
+        const result = {};
+        SETTINGS_FIELDS.forEach(function(field) {
+            const input = settingsInputs[field.key];
+            if (!input) {
+                return;
+            }
+            if (field.type === 'checkbox') {
+                result[field.key] = input.checked;
+            } else if (field.type === 'number') {
+                result[field.key] = Number(input.value);
+            } else if (field.optionsKey === 'lvglMemorySizes' || field.optionsKey === 'wasmMemorySizes') {
+                result[field.key] = Number(input.value);
+            } else {
+                result[field.key] = input.value;
+            }
+        });
+        return result;
+    }
+
+    function openSettings() {
+        if (!currentSettings) {
+            return;
+        }
+        // Build the form from a fresh copy so edits stay local until saved.
+        buildSettingsForm(currentSettings, currentOptions);
+        document.getElementById('settings-overlay').classList.remove('hidden');
+    }
+
+    function closeSettings() {
+        document.getElementById('settings-overlay').classList.add('hidden');
+    }
+
+    function saveSettings() {
+        const settings = gatherSettings();
+        // Basic guard against invalid numeric entries.
+        const numeric = ['displayWidth', 'displayHeight', 'debounceDelay', 'lvglMemorySize', 'wasmMemorySize'];
+        for (const key of numeric) {
+            if (!Number.isFinite(settings[key])) {
+                setStatus('Invalid value for ' + key);
+                return;
+            }
+        }
+        if (settings.displayWidth < 1 || settings.displayHeight < 1) {
+            setStatus('Display width and height must be at least 1 pixel');
+            return;
+        }
+        vscode.postMessage({ type: 'saveSettings', settings: settings });
+        closeSettings();
+    }
+
+    // Set up toolbar and settings-panel event listeners
     document.addEventListener('DOMContentLoaded', function() {
         const reloadButton = document.getElementById('reload-button');
         if (reloadButton) {
@@ -157,6 +436,38 @@
                 reload();
             });
         }
+
+        const settingsButton = document.getElementById('settings-button');
+        if (settingsButton) {
+            settingsButton.addEventListener('click', openSettings);
+        }
+
+        // Suppress the browser context menu over the canvas (replaces the inline
+        // oncontextmenu attribute, which relied on the deprecated global `event`).
+        const canvas = document.getElementById('canvas');
+        if (canvas) {
+            canvas.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+            });
+        }
+
+        document.getElementById('settings-close').addEventListener('click', closeSettings);
+        document.getElementById('settings-cancel').addEventListener('click', closeSettings);
+        document.getElementById('settings-save').addEventListener('click', saveSettings);
+
+        // Clicking the dimmed backdrop (outside the panel) discards and closes.
+        document.getElementById('settings-overlay').addEventListener('click', function(event) {
+            if (event.target === this) {
+                closeSettings();
+            }
+        });
+
+        // Escape discards and closes.
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeSettings();
+            }
+        });
     });
 
     function setStatus(message) {
@@ -262,6 +573,12 @@
 
             case 'updateSettings':
                 console.log('Settings updated:', message.settings);
+                currentSettings = message.settings;
+                currentOptions = message.options;
+                // If the panel is open, refresh it to reflect the persisted values.
+                if (!document.getElementById('settings-overlay').classList.contains('hidden')) {
+                    buildSettingsForm(currentSettings, currentOptions);
+                }
                 break;
         }
     });
