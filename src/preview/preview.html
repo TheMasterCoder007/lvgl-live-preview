@@ -35,15 +35,39 @@
         }
         body {
             margin: 0;
-            padding: 20px;
+            /* Top padding reserves space for the fixed toolbar so it never overlaps
+               the status bar or the preview below it. */
+            padding: 60px 0 0;
+            box-sizing: border-box;
             background-color: var(--vscode-editor-background);
             color: var(--vscode-editor-foreground);
             font-family: var(--vscode-font-family), sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            min-height: 100vh;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* The stage occupies the remaining space below the status bar and provides
+           the available area the preview canvas is scaled to fit. */
+        #stage {
+            flex: 1 1 auto;
+            min-height: 0;
+            width: 100%;
+            display: flex;
+            overflow: auto;
+        }
+
+        /* Center the visible child (canvas / loading / error) using auto margins
+           rather than justify/align center, so that when the content is larger than
+           the stage (e.g. native size with fit-to-window disabled) it stays
+           scrollable all the way to the top-left instead of being clipped.
+           flex-shrink: 0 keeps the child at its full width instead of being shrunk
+           to fit the row, which is what allows horizontal scrolling to work. */
+        #stage > * {
+            margin: auto;
+            flex-shrink: 0;
         }
 
         #toolbar {
@@ -89,7 +113,8 @@
         }
 
         #status {
-            margin-bottom: 20px;
+            flex: 0 0 auto;
+            margin: 0 0 20px;
             padding: 10px 20px;
             background-color: var(--vscode-editor-inactiveSelectionBackground);
             border-radius: 4px;
@@ -251,8 +276,10 @@
             align-items: center;
             justify-content: space-between;
             gap: 10px;
+            flex-wrap: wrap;
         }
 
+        .settings-actions-left,
         .settings-actions-right {
             display: flex;
             gap: 10px;
@@ -283,9 +310,12 @@
             <button class="settings-close" id="settings-close" title="Close" aria-label="Close">✕</button>
         </div>
         <div id="settings-form"></div>
-        <p id="settings-hint">Changes are applied only after you click Save. The preview rebuilds when saved settings change.</p>
+        <p id="settings-hint">Edits are applied only after you click Save. Reset Cache and Reset to Defaults apply immediately.</p>
         <div id="settings-actions">
-            <button class="toolbar-button settings-secondary" id="settings-clear-cache" title="Clear the compiled LVGL cache and rebuild the preview (equivalent to \"LVGL: Force Rebuild\")">Reset Cache</button>
+            <div class="settings-actions-left">
+                <button class="toolbar-button settings-secondary" id="settings-clear-cache" title="Clear the compiled LVGL cache and rebuild the preview (equivalent to LVGL: Force Rebuild)">Reset Cache</button>
+                <button class="toolbar-button settings-secondary" id="settings-reset" title="Reset all settings to their defaults">Reset to Defaults</button>
+            </div>
             <div class="settings-actions-right">
                 <button class="toolbar-button settings-secondary" id="settings-cancel">Cancel</button>
                 <button class="toolbar-button" id="settings-save">Save</button>
@@ -296,16 +326,18 @@
 
 <div id="status">Waiting for compilation...</div>
 
-<div id="loading">
-    <div class="spinner"></div>
-    <p>Loading LVGL Preview...</p>
-</div>
+<div id="stage">
+    <div id="loading">
+        <div class="spinner"></div>
+        <p>Loading LVGL Preview...</p>
+    </div>
 
-<div id="canvas-container" class="hidden">
-    <canvas id="canvas" tabindex="-1"></canvas>
-</div>
+    <div id="canvas-container" class="hidden">
+        <canvas id="canvas" tabindex="-1"></canvas>
+    </div>
 
-<div id="error"></div>
+    <div id="error"></div>
+</div>
 
 <script nonce="{{nonce}}">
     // noinspection JSUnresolvedReference
@@ -321,6 +353,9 @@
     let currentOptions = null;
     const settingsInputs = {};
 
+    // Whether the preview canvas is scaled to fit the window (see applyScaling).
+    let fitToWindow = true;
+
     // Declarative description of each editable setting. `optionsKey` refers to a
     // list provided by the extension in the `updateSettings` message.
     const SETTINGS_FIELDS = [
@@ -328,6 +363,7 @@
         { key: 'emccOptimization', label: 'Emscripten Optimization', type: 'select', optionsKey: 'optimizations' },
         { key: 'displayWidth', label: 'Display Width (px)', type: 'number' },
         { key: 'displayHeight', label: 'Display Height (px)', type: 'number' },
+        { key: 'fitToWindow', label: 'Scale preview to fit the window', type: 'checkbox' },
         { key: 'lvglMemorySize', label: 'LVGL Memory Size', type: 'select', optionsKey: 'lvglMemorySizes', suffix: ' KB' },
         { key: 'wasmMemorySize', label: 'WASM Memory Size', type: 'select', optionsKey: 'wasmMemorySizes', suffix: ' MB' },
         { key: 'autoReload', label: 'Auto reload on file changes', type: 'checkbox' },
@@ -515,7 +551,14 @@
             canvas.addEventListener('contextmenu', function(e) {
                 e.preventDefault();
             });
+
+            // Reapply scaling whenever SDL changes the canvas resolution.
+            const canvasSizeObserver = new MutationObserver(applyScaling);
+            canvasSizeObserver.observe(canvas, { attributes: true, attributeFilter: ['width', 'height'] });
         }
+
+        // Reapply scaling when the window (webview) is resized.
+        window.addEventListener('resize', applyScaling);
 
         document.getElementById('settings-close').addEventListener('click', closeSettings);
         document.getElementById('settings-cancel').addEventListener('click', closeSettings);
@@ -523,6 +566,10 @@
         document.getElementById('settings-clear-cache').addEventListener('click', function() {
             closeSettings();
             vscode.postMessage({ type: 'clearCache' });
+        });
+        document.getElementById('settings-reset').addEventListener('click', function() {
+            closeSettings();
+            vscode.postMessage({ type: 'resetSettings' });
         });
 
         // Clicking the dimmed backdrop (outside the panel) discards and closes.
@@ -554,6 +601,39 @@
         document.getElementById('loading').classList.add('hidden');
         document.getElementById('canvas-container').classList.remove('hidden');
         document.getElementById('error').style.display = 'none';
+    }
+
+    // Scale the preview canvas to fit the available stage area while preserving its
+    // aspect ratio. Scales down when the stage is smaller than the native resolution
+    // and up when it is larger. When fitToWindow is disabled, the canvas renders at
+    // its native pixel size.
+    function applyScaling() {
+        const canvas = document.getElementById('canvas');
+        const stage = document.getElementById('stage');
+        if (!canvas || !stage) {
+            return;
+        }
+
+        const bufferW = canvas.width;
+        const bufferH = canvas.height;
+
+        if (!fitToWindow || !bufferW || !bufferH) {
+            // Native resolution: clear any scaling.
+            canvas.style.width = '';
+            canvas.style.height = '';
+            return;
+        }
+
+        const margin = 16;
+        const availW = Math.max(0, stage.clientWidth - margin * 2);
+        const availH = Math.max(0, stage.clientHeight - margin * 2);
+        if (availW === 0 || availH === 0) {
+            return;
+        }
+
+        const scale = Math.min(availW / bufferW, availH / bufferH);
+        canvas.style.width = Math.max(1, Math.round(bufferW * scale)) + 'px';
+        canvas.style.height = Math.max(1, Math.round(bufferH * scale)) + 'px';
     }
 
     function showError(message) {
@@ -588,6 +668,10 @@
                     console.log('✓ LVGL runtime initialized');
                     setStatus('Running');
                     showCanvas();
+                    // The canvas is sized by SDL shortly after this; the MutationObserver
+                    // in the setup below reapplies scaling once its resolution is set, and
+                    // this call covers the case where it is already sized.
+                    applyScaling();
                 },
                 print: function(text) {
                     console.log('[LVGL]', text);
@@ -648,6 +732,9 @@
                 console.log('Settings updated:', message.settings);
                 currentSettings = message.settings;
                 currentOptions = message.options;
+                // Default to enabled if the setting is missing.
+                fitToWindow = message.settings.fitToWindow !== false;
+                applyScaling();
                 updateOrientationButton(message.orientationSwapped);
                 // If the panel is open, refresh it to reflect the persisted values.
                 if (!document.getElementById('settings-overlay').classList.contains('hidden')) {

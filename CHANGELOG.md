@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a "Rotate" toolbar button that toggles the preview orientation by swapping the display width and height for the current session. The swap is temporary — it does not change your saved settings and resets to the saved orientation when a new preview session starts
 - Added a "Stop" button to the preview window toolbar that stops the live preview and closes the preview window
 - Added a "Reset Cache" button to the settings panel that clears the compiled LVGL cache and rebuilds the preview (equivalent to the "LVGL: Force Rebuild" command)
+- Added a "Reset to Defaults" button to the settings panel that restores all settings to their defaults (after a confirmation prompt)
+- Added a "Scale preview to fit the window" setting (enabled by default) that scales the preview to fit the available area while keeping its aspect ratio — scaling down in a small window and up in a large one. It updates live as the window is resized
 
 ### Changed
 - Settings are now owned entirely by the preview and stored by the extension; they no longer appear in the VS Code Settings UI. Existing `lvglPreview.*` values are migrated automatically on first use

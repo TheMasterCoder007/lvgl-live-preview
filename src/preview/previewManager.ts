@@ -92,6 +92,17 @@ export class PreviewManager implements vscode.Disposable {
 						// cache and then recompiles/reloads the preview.
 						await vscode.commands.executeCommand('lvgl-preview.rebuild');
 					},
+					onResetSettings: async () => {
+						// Resetting wipes all stored settings, so confirm first.
+						const choice = await vscode.window.showWarningMessage(
+							'Reset all LVGL preview settings to their defaults?',
+							{ modal: true },
+							'Reset'
+						);
+						if (choice === 'Reset') {
+							await this.resetSettings();
+						}
+					},
 				});
 			}
 
@@ -265,14 +276,38 @@ export class PreviewManager implements vscode.Disposable {
 	 */
 	public async saveSettings(settings: PreviewSettings): Promise<void> {
 		const changed = await SettingsManager.saveSettings(this.context, settings);
+		this.outputChannel.appendLine(`[PreviewManager] Settings saved, changed: ${changed.join(', ') || '(none)'}`);
+		await this.applySettingsChange(changed);
+	}
 
+	/**
+	 * @brief Resets all settings to their defaults and applies the change.
+	 *
+	 * Clears the user's stored settings back to the built-in defaults. Rebuilds or
+	 * refreshes as needed based on which values actually changed.
+	 */
+	public async resetSettings(): Promise<void> {
+		const changed = await SettingsManager.resetSettings(this.context);
+		this.outputChannel.appendLine(
+			`[PreviewManager] Settings reset to defaults, changed: ${changed.join(', ') || '(none)'}`
+		);
+		await this.applySettingsChange(changed);
+	}
+
+	/**
+	 * @brief Applies a set of changed settings to the running preview.
+	 *
+	 * Rebuilds when a compile-affecting setting changed, restarts the file watcher when
+	 * a watcher-affecting setting changed, and otherwise just refreshes the webview so
+	 * the panel and display-only settings (e.g. fit-to-window) reflect the new values.
+	 *
+	 * @param changed - The keys whose values changed.
+	 */
+	private async applySettingsChange(changed: (keyof PreviewSettings)[]): Promise<void> {
 		if (changed.length === 0) {
-			this.outputChannel.appendLine('[PreviewManager] Settings saved (no changes)');
 			this.refreshSettings();
 			return;
 		}
-
-		this.outputChannel.appendLine(`[PreviewManager] Settings saved, changed: ${changed.join(', ')}`);
 
 		const needsRebuild = changed.some((key) => PreviewManager.REBUILD_KEYS.includes(key));
 		const needsWatcherRestart = changed.some((key) => PreviewManager.WATCHER_KEYS.includes(key));

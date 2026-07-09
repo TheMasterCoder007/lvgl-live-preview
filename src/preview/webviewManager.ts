@@ -20,6 +20,8 @@ export interface WebviewHandlers {
 	onStop?: () => void | Promise<void>;
 	/** Invoked when the reset cache button is clicked. */
 	onClearCache?: () => void | Promise<void>;
+	/** Invoked when the reset-to-defaults button is clicked. */
+	onResetSettings?: () => void | Promise<void>;
 }
 
 /**
@@ -202,6 +204,14 @@ void Promise.resolve(this.handlers.onClearCache?.()).catch((error) =>
 		`Webview clear-cache handler failed: ${error instanceof Error ? error.message : String(error)}`
 	)
 );
+				break;
+			case 'resetSettings':
+				this.outputChannel.appendLine('Webview requesting settings reset');
+				void Promise.resolve(this.handlers.onResetSettings?.()).catch((error) =>
+					this.outputChannel.appendLine(
+						`Webview reset-settings handler failed: ${error instanceof Error ? error.message : String(error)}`
+					)
+				);
 				break;
 		}
 	}

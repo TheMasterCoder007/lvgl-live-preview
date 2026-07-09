@@ -30,6 +30,8 @@ export interface PreviewSettings {
 	debounceDelay: number;
 	lvglMemorySize: number;
 	wasmMemorySize: number;
+	/** Scale the preview canvas to fit the webview window while preserving aspect ratio. */
+	fitToWindow: boolean;
 }
 
 /**
@@ -57,7 +59,8 @@ export type WebviewMessage =
 	| { type: 'log'; level: 'log' | 'error'; message: string }
 	| { type: 'toggleOrientation' }
 	| { type: 'stop' }
-	| { type: 'clearCache' };
+	| { type: 'clearCache' }
+	| { type: 'resetSettings' };
 
 export type PreviewStatus = 'idle' | 'initializing' | 'compiling' | 'running' | 'error';
 
