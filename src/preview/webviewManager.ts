@@ -54,6 +54,12 @@ export class WebviewManager implements vscode.Disposable {
 	 * @param title - The title to display in the webview panel
 	 */
 	public async createOrShow(title: string): Promise<void> {
+		// createOrShow marks the start of a preview session. Reset the reveal guard so
+		// the runtime log channel is revealed again on the first log of this session.
+		// (recreate() - hot reload - deliberately does NOT reset it, so the Output
+		// panel doesn't pop to the front on every file save.)
+		this.hasRevealedLogChannel = false;
+
 		const column =
 			vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn
 				? vscode.window.activeTextEditor.viewColumn + 1
@@ -174,8 +180,10 @@ export class WebviewManager implements vscode.Disposable {
 	/**
 	 * @brief Appends a line of the previewed app's runtime output to the log channel.
 	 *
-	 * The first log of a preview session reveals the channel (without stealing focus)
-	 * so the output is discoverable; subsequent logs just append.
+	 * The first log after a preview session starts reveals the channel (without
+	 * stealing focus) so the output is discoverable. Later logs - including those
+	 * after a hot reload within the same session - just append, so the Output panel
+	 * is not repeatedly forced to the foreground while editing.
 	 *
 	 * @param level - 'error' for stderr output, 'log' otherwise
 	 * @param message - The log text emitted by the app (printf / LV_LOG_*)
