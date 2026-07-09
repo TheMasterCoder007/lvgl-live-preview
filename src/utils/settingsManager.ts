@@ -19,6 +19,14 @@ export class SettingsManager {
 	private static readonly LEGACY_SECTION = 'lvglPreview';
 
 	/**
+	 * Session-only orientation override. When true, the effective display width and
+	 * height are swapped relative to the saved settings. This is deliberately kept
+	 * in memory only - it is never persisted and resets to false when a new preview
+	 * session starts.
+	 */
+	private static orientationSwapped = false;
+
+	/**
 	 * @brief Default values used when no stored settings exist.
 	 */
 	private static readonly DEFAULTS: PreviewSettings = {
@@ -89,6 +97,55 @@ export class SettingsManager {
 		// One-time migration: persist legacy VS Code settings into globalState.
 		void context.globalState.update(this.STORAGE_KEY, legacy);
 		return legacy;
+	}
+
+	/**
+	 * @brief Reads the saved settings with the session orientation override applied.
+	 *
+	 * When the orientation has been toggled for this session, the effective display
+	 * width and height are swapped. Used by the build/compile path so a rotate takes
+	 * effect without changing the user's saved dimensions. The settings panel keeps
+	 * reading the un-swapped saved values via getSettings().
+	 *
+	 * @param context The extension context (provides global state).
+	 * @returns The effective PreviewSettings for compilation.
+	 */
+	public static getEffectiveSettings(context: vscode.ExtensionContext): PreviewSettings {
+		const settings = this.getSettings(context);
+		if (this.orientationSwapped) {
+			return {
+				...settings,
+				displayWidth: settings.displayHeight,
+				displayHeight: settings.displayWidth,
+			};
+		}
+		return settings;
+	}
+
+	/**
+	 * @brief Whether the session orientation is currently swapped.
+	 */
+	public static isOrientationSwapped(): boolean {
+		return this.orientationSwapped;
+	}
+
+	/**
+	 * @brief Sets the session orientation override.
+	 *
+	 * @param swapped true to swap width/height, false for the saved orientation.
+	 */
+	public static setOrientationSwapped(swapped: boolean): void {
+		this.orientationSwapped = swapped;
+	}
+
+	/**
+	 * @brief Toggles the session orientation override.
+	 *
+	 * @returns The new swapped state.
+	 */
+	public static toggleOrientation(): boolean {
+		this.orientationSwapped = !this.orientationSwapped;
+		return this.orientationSwapped;
 	}
 
 	/**

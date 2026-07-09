@@ -15,6 +15,7 @@ LVGL Live Preview is a Visual Studio Code extension that provides real-time prev
 - 🎨 **Interactive**: Full mouse/touch input support
 - ⚙️ **Configurable**: Customize display size, LVGL version, and compiler optimization
 - 🛠️ **In-Preview Settings**: Adjust all settings from a settings panel in the preview window — changes apply only when you click **Save**
+- 🔀 **Orientation Toggle**: A **Rotate** button swaps display width/height (portrait ⇄ landscape) for the current session, without changing your saved settings
 - 📦 **Zero Setup**: Emscripten SDK is downloaded and installed automatically
 - 🎯 **Single or Multi-File**: Works with single C files or multi-file projects with dependencies
 - 📁 **Dependency Management**: Configure dependencies via `.lvgl-live-preview.json` with incremental compilation

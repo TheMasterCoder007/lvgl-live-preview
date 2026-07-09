@@ -45,7 +45,7 @@ export interface SettingsOptions {
 export type ExtensionMessage =
 	| { type: 'loadWasm'; wasmBase64: string; jsContent: string }
 	| { type: 'showError'; message: string; errors?: CompilerError[] }
-	| { type: 'updateSettings'; settings: PreviewSettings; options: SettingsOptions }
+	| { type: 'updateSettings'; settings: PreviewSettings; options: SettingsOptions; orientationSwapped: boolean }
 	| { type: 'compiling' }
 	| { type: 'ready' };
 
@@ -54,7 +54,8 @@ export type WebviewMessage =
 	| { type: 'error'; message: string }
 	| { type: 'reload' }
 	| { type: 'saveSettings'; settings: PreviewSettings }
-	| { type: 'log'; level: 'log' | 'error'; message: string };
+	| { type: 'log'; level: 'log' | 'error'; message: string }
+	| { type: 'toggleOrientation' };
 
 export type PreviewStatus = 'idle' | 'initializing' | 'compiling' | 'running' | 'error';
 
