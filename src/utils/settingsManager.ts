@@ -84,7 +84,11 @@ export class SettingsManager {
 			// Merge over defaults so any newly added setting has a sane value.
 			return { ...this.DEFAULTS, ...stored };
 		}
-		return this.readLegacySettings();
+
+		const legacy = this.readLegacySettings();
+		// One-time migration: persist legacy VS Code settings into globalState.
+		void context.globalState.update(this.STORAGE_KEY, legacy);
+		return legacy;
 	}
 
 	/**

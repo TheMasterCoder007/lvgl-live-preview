@@ -166,8 +166,8 @@ export class WebviewManager implements vscode.Disposable {
 	/**
 	 * @brief Sends the current settings and selectable options to the webview.
 	 *
-	 * Used to populate the in-webview settings panel, both on initial load and after
-	 * settings change (e.g., edited via the native VS Code settings UI).
+		 * Used to populate the in-webview settings panel, both on initial load and after
+		 * settings are saved (e.g., to refresh the panel after a save that doesn't rebuild).
 	 */
 	public sendSettings(): void {
 		this.sendMessage({
