@@ -48,6 +48,8 @@ Then press F5 to run the extension in development mode.
 
 ## Quick Start
 
+> **New here?** Open the **Get Started with LVGL Live Preview** walkthrough from the VS Code Welcome page (or run **Welcome: Open Walkthrough**) for a guided setup. It also opens automatically the first time the extension activates.
+
 1. Create a new C file with LVGL code
 2. Define a `lvgl_live_preview_init()` function wrapped in `#ifdef LVGL_LIVE_PREVIEW` (required entry point)
 3. Press `Ctrl+Shift+L` or run "LVGL: Start Live Preview" from the command palette

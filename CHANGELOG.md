@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a "Scale preview to fit the window" setting (enabled by default) that scales the preview to fit the available area while keeping its aspect ratio — scaling down in a small window and up in a large one. It updates live as the window is resized
 - Added an "LVGL: Check Setup" command that diagnoses the environment (Python, Emscripten toolchain, free disk space, and network) and reports exactly what is missing
 - Added an "LVGL: Reinstall Emscripten Toolchain" command that deletes and cleanly re-installs the toolchain (useful after a failed or partial install)
+- Added a "Get Started with LVGL Live Preview" walkthrough (shown on the VS Code Welcome page and opened on the first run) that guides you through checking your setup, opening a sample, and starting your first preview
+- Added an "LVGL: Open Sample File" command that opens a ready-to-run example
 
 ### Changed
 - The Emscripten toolchain version (3.1.50) is now pinned explicitly in code rather than relying on the emsdk installer's `latest` alias, so the installed version stays fixed even if the bundled emsdk release is bumped later

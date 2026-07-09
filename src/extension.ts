@@ -52,10 +52,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	compilationManager = new CompilationManager(context, outputChannel);
 	previewManager = new PreviewManager(context, compilationManager, outputChannel, logChannel);
 
-	// Check if this is the first run
+	// On first run, open the Get Started walkthrough instead of a one-off toast.
 	const hasShownWelcome = context.globalState.get<boolean>('hasShownWelcome', false);
 	if (!hasShownWelcome) {
-		await showWelcomeMessage();
+		void vscode.commands.executeCommand(
+			'workbench.action.openWalkthrough',
+			'themastercoder007.lvgl-live-preview#lvglGetStarted',
+			false
+		);
 		await context.globalState.update('hasShownWelcome', true);
 	}
 
@@ -173,6 +177,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
+		vscode.commands.registerCommand('lvgl-preview.createSample', async () => {
+			await openSampleFile();
+		})
+	);
+
+	context.subscriptions.push(
 		vscode.commands.registerCommand('lvgl-preview.reinstallToolchain', async () => {
 			const choice = await vscode.window.showWarningMessage(
 				'Reinstall the Emscripten toolchain? This deletes the current install (~1–2 GB) and downloads it again.',
@@ -244,19 +254,15 @@ async function runSetupCheck(context: vscode.ExtensionContext): Promise<void> {
 	}
 }
 
-async function showWelcomeMessage() {
-	const result = await vscode.window.showInformationMessage(
-		'Welcome to LVGL Live Preview! This extension provides real-time preview of LVGL C code.',
-		'Quick Start',
-		'Documentation'
-	);
-
-	if (result === 'Quick Start') {
-		// Create a sample LVGL file
-		const doc = await vscode.workspace.openTextDocument({
-			language: 'c',
-			content: `
-#include "lvgl.h"
+/**
+ * @brief Opens a ready-to-run sample LVGL file with the required entry point.
+ *
+ * Used by the "Open Sample File" walkthrough step and command.
+ */
+async function openSampleFile(): Promise<void> {
+	const doc = await vscode.workspace.openTextDocument({
+		language: 'c',
+		content: `#include "lvgl.h"
 
 #ifdef LVGL_LIVE_PREVIEW
 void lvgl_live_preview_init(void) {
@@ -271,9 +277,6 @@ void lvgl_live_preview_init(void) {
 }
 #endif
 `,
-		});
-		await vscode.window.showTextDocument(doc);
-	} else if (result === 'Documentation') {
-		vscode.env.openExternal(vscode.Uri.parse('https://docs.lvgl.io/'));
-	}
+	});
+	await vscode.window.showTextDocument(doc);
 }

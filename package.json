@@ -61,6 +61,11 @@
 				"command": "lvgl-preview.reinstallToolchain",
 				"title": "LVGL: Reinstall Emscripten Toolchain",
 				"category": "LVGL Preview"
+			},
+			{
+				"command": "lvgl-preview.createSample",
+				"title": "LVGL: Open Sample File",
+				"category": "LVGL Preview"
 			}
 		],
 		"keybindings": [
@@ -86,7 +91,49 @@
 					"group": "navigation"
 				}
 			]
-		}
+		},
+		"walkthroughs": [
+			{
+				"id": "lvglGetStarted",
+				"title": "Get Started with LVGL Live Preview",
+				"description": "Preview your LVGL C UI live in VS Code. Set up the toolchain and run your first preview.",
+				"steps": [
+					{
+						"id": "checkSetup",
+						"title": "Check your setup",
+						"description": "LVGL Live Preview compiles your C to WebAssembly using Emscripten, which needs **Python 3** on your PATH and ~1–2 GB of free disk space for the toolchain.\n\nRun a quick environment check to see if you're ready.\n[Check Setup](command:lvgl-preview.checkSetup)",
+						"media": {
+							"markdown": "media/walkthrough/check-setup.md"
+						},
+						"completionEvents": [
+							"onCommand:lvgl-preview.checkSetup"
+						]
+					},
+					{
+						"id": "createSample",
+						"title": "Open a sample UI",
+						"description": "Open a ready-to-run example that defines the required `lvgl_live_preview_init()` entry point.\n[Open Sample File](command:lvgl-preview.createSample)",
+						"media": {
+							"markdown": "media/walkthrough/sample.md"
+						},
+						"completionEvents": [
+							"onCommand:lvgl-preview.createSample"
+						]
+					},
+					{
+						"id": "startPreview",
+						"title": "Start the live preview",
+						"description": "With a C file open, start the preview. The **first run installs the Emscripten toolchain** (one-time, ~1–2 GB) and builds the SDL2 port, so it can take a few minutes.\n\nPress `kb(lvgl-preview.start)` or use the button below.\n[Start Live Preview](command:lvgl-preview.start)",
+						"media": {
+							"markdown": "media/walkthrough/start.md"
+						},
+						"completionEvents": [
+							"onCommand:lvgl-preview.start"
+						]
+					}
+				]
+			}
+		]
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
