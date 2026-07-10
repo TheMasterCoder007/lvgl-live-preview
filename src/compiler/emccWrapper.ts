@@ -40,6 +40,24 @@ export class EmccWrapper {
 	}
 
 	/**
+	 * @brief Path to the bundled emcc, usable as `compilerPath` for IntelliSense.
+	 *
+	 * @returns {string} Absolute path to the bundled emcc executable.
+	 */
+	public getCompilerPath(): string {
+		return this.emsdkInstaller.getEmccPath();
+	}
+
+	/**
+	 * @brief Emscripten sysroot include directories (C stdlib, SDL2, libc++).
+	 *
+	 * @returns {string[]} System include paths for IntelliSense.
+	 */
+	public getSystemIncludePaths(): string[] {
+		return this.emsdkInstaller.getSysrootIncludePaths();
+	}
+
+	/**
 	 * @brief Parses compiler output to extract structured error and warning information.
 	 *
 	 * Parses GCC/Clang style error messages in the format:

@@ -155,6 +155,28 @@ export class EmsdkInstaller {
 	}
 
 	/**
+	 * @brief Gets the Emscripten sysroot include directories.
+	 *
+	 * These hold the C standard library / SDL2 headers and the libc++ (C++
+	 * standard library) headers bundled with Emscripten. Adding them to
+	 * c_cpp_properties.json lets the C/C++ extension resolve `#include <string>`
+	 * and friends in C++ preview files.
+	 *
+	 * @returns {string[]} [<sysroot>/include, <sysroot>/include/c++/v1]
+	 */
+	public getSysrootIncludePaths(): string[] {
+		const sysrootInclude = path.join(
+			this.getEmsdkRoot(),
+			'upstream',
+			'emscripten',
+			'cache',
+			'sysroot',
+			'include'
+		);
+		return [sysrootInclude, path.join(sysrootInclude, 'c++', 'v1')];
+	}
+
+	/**
 	 * @brief Gets the root path of the emsdk installation.
 	 *
 	 * @returns {string} The absolute path to the emsdk root directory.

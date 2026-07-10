@@ -155,9 +155,16 @@ export class CompilationManager implements vscode.Disposable {
 			const lvglPath = await this.versionManager.ensureVersion(lvglVersion);
 			this.outputChannel.appendLine(`LVGL path: ${lvglPath}`);
 
-			// Update IntelliSense configuration
+			// Update IntelliSense configuration. Pass the bundled emcc as the compiler
+			// and the Emscripten sysroot includes so C++ preview files resolve the C++
+			// standard library (and SDL/emscripten headers) in the editor.
 			const workspaceFolder = vscode.workspace.getWorkspaceFolder(fileUri);
-			await IntellisenseHelper.updateCppProperties(lvglPath, workspaceFolder);
+			await IntellisenseHelper.updateCppProperties(
+				lvglPath,
+				workspaceFolder,
+				this.emccWrapper.getCompilerPath(),
+				this.emccWrapper.getSystemIncludePaths()
+			);
 
 			// Build or get cached LVGL object files
 			this.outputChannel.appendLine('Checking for LVGL objects...');
