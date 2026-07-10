@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { PreviewManager } from './preview/previewManager';
 import { CompilationManager } from './compiler/compilationManager';
 import { StatusBarManager } from './ui/statusBarManager';
@@ -52,12 +55,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	compilationManager = new CompilationManager(context, outputChannel);
 	previewManager = new PreviewManager(context, compilationManager, outputChannel, logChannel);
 
-	// Check if this is the first run
-	const hasShownWelcome = context.globalState.get<boolean>('hasShownWelcome', false);
-	if (!hasShownWelcome) {
-		await showWelcomeMessage();
-		await context.globalState.update('hasShownWelcome', true);
-	}
+	// Show the status bar item only when it's relevant (a C file is active or a preview is
+	// running), so it doesn't clutter windows unrelated to LVGL now that the extension can
+	// activate on startup.
+	context.subscriptions.push(
+		vscode.window.onDidChangeActiveTextEditor(() => updateStatusBarVisibility())
+	);
+	updateStatusBarVisibility();
 
 	// Register commands
 	context.subscriptions.push(
@@ -71,6 +75,21 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (editor.document.languageId !== 'c') {
 				vscode.window.showErrorMessage('LVGL Preview only works with C files');
 				return;
+			}
+
+			// The preview compiles the file by its path, so it must exist on disk.
+			if (editor.document.isUntitled) {
+				vscode.window.showErrorMessage('Please save this file to disk before starting the LVGL preview.');
+				return;
+			}
+
+			// Compilation reads the file from disk, so flush any unsaved edits first.
+			if (editor.document.isDirty) {
+				const saved = await editor.document.save();
+				if (!saved) {
+					void vscode.window.showInformationMessage('LVGL Preview start cancelled (file not saved).');
+					return;
+				}
 			}
 
 			// Check if preview is already running
@@ -95,12 +114,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				if (!isInstalled) {
 					const result = await vscode.window.showInformationMessage(
-						'Emscripten SDK is required but not installed. Download now? (This is a one-time setup, ~200MB)',
-						'Download',
+						'The Emscripten toolchain is required but not installed. This one-time setup downloads and ' +
+							'installs it (~1–2 GB on disk) and requires Python 3 on your PATH. The first preview also ' +
+							'downloads the SDL2 port. Install now?',
+						'Install',
 						'Cancel'
 					);
 
-					if (result === 'Download') {
+					if (result === 'Install') {
 						await emsdkInstaller.installEmsdk();
 					} else {
 						statusBarManager?.setStatus('idle');
@@ -110,7 +131,16 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				await previewManager?.startPreview(editor.document.uri);
 				statusBarManager?.setStatus('running');
+				updateStatusBarVisibility();
 			} catch (error: unknown) {
+				// Cancellation (e.g. cancelling the toolchain install) is not an error.
+				if (error instanceof vscode.CancellationError) {
+					outputChannel.appendLine('Preview startup cancelled.');
+					statusBarManager?.setStatus('idle');
+					void vscode.window.showInformationMessage('LVGL Preview setup cancelled.');
+					return;
+				}
+
 				statusBarManager?.setStatus('error');
 				const errorMessage = error instanceof Error ? error.message : String(error);
 				const errorStack = error instanceof Error ? error.stack : '';
@@ -135,6 +165,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			outputChannel.appendLine('Stopping preview');
 			await previewManager?.stopPreview();
 			statusBarManager?.setStatus('idle');
+			updateStatusBarVisibility();
 		})
 	);
 
@@ -155,24 +186,196 @@ export async function activate(context: vscode.ExtensionContext) {
 			vscode.window.showInformationMessage('LVGL Preview cache cleared');
 		})
 	);
-}
 
-async function showWelcomeMessage() {
-	const result = await vscode.window.showInformationMessage(
-		'Welcome to LVGL Live Preview! This extension provides real-time preview of LVGL C code.',
-		'Quick Start',
-		'Documentation'
+	context.subscriptions.push(
+		vscode.commands.registerCommand('lvgl-preview.checkSetup', async () => {
+			await runSetupCheck(context);
+		})
 	);
 
-	if (result === 'Quick Start') {
-		// Create a sample LVGL file
-		const doc = await vscode.workspace.openTextDocument({
-			language: 'c',
-			content: `
-#include "lvgl.h"
+	context.subscriptions.push(
+		vscode.commands.registerCommand('lvgl-preview.createSample', async () => {
+			await openSampleFile();
+		})
+	);
 
-#ifdef LVGL_LIVE_PREVIEW
-void lvgl_live_preview_init(void) {
+	context.subscriptions.push(
+		vscode.commands.registerCommand('lvgl-preview.openWalkthrough', async () => {
+			try {
+				await openGetStartedWalkthrough();
+			} catch (error) {
+				outputChannel.appendLine(`Failed to open Get Started walkthrough: ${error}`);
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('lvgl-preview.installToolchain', async () => {
+			const emsdkInstaller = new EmsdkInstaller(context, outputChannel);
+			try {
+				outputChannel.show(true);
+
+				// The extension uses its own bundled Emscripten, not a system-wide emcc.
+				if (await emsdkInstaller.checkInstallation()) {
+					const choice = await vscode.window.showInformationMessage(
+						'The Emscripten toolchain is already installed.',
+						'Reinstall'
+					);
+					if (choice === 'Reinstall') {
+						await emsdkInstaller.reinstall();
+					}
+					return;
+				}
+
+				await emsdkInstaller.installEmsdk();
+			} catch (error: unknown) {
+				if (error instanceof vscode.CancellationError) {
+					void vscode.window.showInformationMessage('Emscripten installation cancelled.');
+					return;
+				}
+				const message = error instanceof Error ? error.message : String(error);
+				void vscode.window.showErrorMessage(`Failed to install Emscripten toolchain: ${message}`);
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('lvgl-preview.reinstallToolchain', async () => {
+			const choice = await vscode.window.showWarningMessage(
+				'Reinstall the Emscripten toolchain? This deletes the current install (~1–2 GB) and downloads it again.',
+				{ modal: true },
+				'Reinstall'
+			);
+			if (choice !== 'Reinstall') {
+				return;
+			}
+
+			const emsdkInstaller = new EmsdkInstaller(context, outputChannel);
+			try {
+				outputChannel.show(true);
+				await emsdkInstaller.reinstall();
+			} catch (error: unknown) {
+				if (error instanceof vscode.CancellationError) {
+					void vscode.window.showInformationMessage('Emscripten reinstall cancelled.');
+					return;
+				}
+				const message = error instanceof Error ? error.message : String(error);
+				void vscode.window.showErrorMessage(`Failed to reinstall Emscripten toolchain: ${message}`);
+			}
+		})
+	);
+	// On the first run (first startup after installation, thanks to onStartupFinished), open the
+	// Get Started walkthrough. Runs after the commands are registered so its buttons work
+	// immediately, and the "shown" flag is only set once it actually opens, so a failed
+	// attempt is retried on the next startup instead of being lost.
+	await showWalkthroughOnFirstRun(context);
+}
+
+// Opens the Get Started walkthrough on first run (see showWalkthroughOnFirstRun below).
+/**
+ * @brief Updates status bar visibility based on context.
+ *
+ * The item is shown only when a C file is the active editor or a preview is running.
+ */
+function updateStatusBarVisibility(): void {
+	const isCFile = vscode.window.activeTextEditor?.document.languageId === 'c';
+	const running = previewManager?.isRunning() ?? false;
+	statusBarManager?.setVisible(isCFile || running);
+}
+
+/**
+ * @brief Opens the Get Started walkthrough.
+ */
+async function openGetStartedWalkthrough(): Promise<void> {
+	await vscode.commands.executeCommand(
+		'workbench.action.openWalkthrough',
+		'themastercoder007.lvgl-live-preview#lvglGetStarted',
+		false
+	);
+}
+
+async function showWalkthroughOnFirstRun(context: vscode.ExtensionContext): Promise<void> {
+	// Dedicated key (not the legacy 'hasShownWelcome') so the improved walkthrough shows
+	// once for anyone who ran an earlier build where the flag was set without it opening.
+	if (context.globalState.get<boolean>('hasOpenedGetStartedWalkthrough', false)) {
+		return;
+	}
+
+	try {
+		await openGetStartedWalkthrough();
+		await context.globalState.update('hasOpenedGetStartedWalkthrough', true);
+	} catch (error) {
+		outputChannel.appendLine(`Failed to open Get Started walkthrough: ${error}`);
+	}
+}
+
+/**
+ * @brief Runs the setup diagnostics ("doctor") and reports the results.
+ *
+ * Writes a detailed report to the output channel and shows a summary notification.
+ *
+ * @param context - The extension context.
+ */
+async function runSetupCheck(context: vscode.ExtensionContext): Promise<void> {
+	outputChannel.show(true);
+	outputChannel.appendLine('='.repeat(60));
+	outputChannel.appendLine('LVGL Preview — Setup Check');
+	outputChannel.appendLine('='.repeat(60));
+
+	const emsdkInstaller = new EmsdkInstaller(context, outputChannel);
+	const diagnostics = await vscode.window.withProgress(
+		{ location: vscode.ProgressLocation.Notification, title: 'LVGL: checking setup...', cancellable: false },
+		() => emsdkInstaller.getDiagnostics()
+	);
+
+	const icon = { pass: '✓', warn: '⚠', fail: '✗' };
+	for (const d of diagnostics) {
+		outputChannel.appendLine(`${icon[d.status]} ${d.name}: ${d.detail}`);
+	}
+	outputChannel.appendLine('='.repeat(60));
+
+	const failures = diagnostics.filter((d) => d.status === 'fail');
+	const warnings = diagnostics.filter((d) => d.status === 'warn');
+
+	if (failures.length === 0 && warnings.length === 0) {
+		void vscode.window.showInformationMessage('LVGL Preview setup looks good — all checks passed.');
+	} else {
+		const parts = [
+			...failures.map((d) => `✗ ${d.name}`),
+			...warnings.map((d) => `⚠ ${d.name}`),
+		];
+		// Offer a direct install when the (bundled) toolchain is what's missing.
+		const toolchainMissing = failures.some((d) => d.name === 'Emscripten toolchain');
+		const actions = toolchainMissing ? ['Install Emscripten', 'Show Output'] : ['Show Output'];
+
+		const action = await vscode.window.showWarningMessage(
+			`LVGL Preview setup issues: ${parts.join(', ')}. See the LVGL Preview output for details.`,
+			...actions
+		);
+		if (action === 'Install Emscripten') {
+			await vscode.commands.executeCommand('lvgl-preview.installToolchain');
+		} else if (action === 'Show Output') {
+			outputChannel.show(true);
+		}
+	}
+}
+
+/**
+ * @brief Opens a ready-to-run sample LVGL file with the required entry point.
+ *
+ * The sample is written to a real file on disk (in a temp folder) rather than an
+ * untitled buffer, because the preview compiles the file by its path — untitled/unsaved
+ * documents have no path and cannot be compiled.
+ *
+ * Used by the "Open Sample File" walkthrough step and command.
+ */
+async function openSampleFile(): Promise<void> {
+	const sampleDir = path.join(os.tmpdir(), 'lvgl-live-preview');
+	const samplePath = path.join(sampleDir, 'hello_lvgl.c');
+	const content = `#include "lvgl.h"
+
+// initializes your UI (entry point of your application)
+static void ui_init(void) {
     // Create a simple button
     lv_obj_t *btn = lv_btn_create(lv_scr_act());
     lv_obj_set_size(btn, 120, 50);
@@ -182,11 +385,19 @@ void lvgl_live_preview_init(void) {
     lv_label_set_text(label, "Hello LVGL!");
     lv_obj_center(label);
 }
+
+#ifdef LVGL_LIVE_PREVIEW
+// gives the live preview tool a way to initialize your UI
+void lvgl_live_preview_init(void) {
+    ui_init();
+}
 #endif
-`,
-		});
-		await vscode.window.showTextDocument(doc);
-	} else if (result === 'Documentation') {
-		vscode.env.openExternal(vscode.Uri.parse('https://docs.lvgl.io/'));
-	}
+`;
+
+	fs.mkdirSync(sampleDir, { recursive: true });
+	// Always write the canonical sample (overwrites any previous copy).
+	fs.writeFileSync(samplePath, content, 'utf-8');
+
+	const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(samplePath));
+	await vscode.window.showTextDocument(doc);
 }

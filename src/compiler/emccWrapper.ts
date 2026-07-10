@@ -19,6 +19,10 @@ const execFile = util.promisify(child_process.execFile);
 export class EmccWrapper {
 	private emsdkInstaller: EmsdkInstaller;
 	private outputChannel: vscode.OutputChannel;
+	private context: vscode.ExtensionContext;
+
+	/** globalState key tracking whether the one-time SDL2 port build has completed. */
+	private static readonly SDL2_WARMED_KEY = 'lvglPreview.sdl2PortWarmed';
 
 	/**
 	 * @constructor
@@ -28,6 +32,7 @@ export class EmccWrapper {
 	 * @param outputChannel Output channel for displaying compilation logs to the user.
 	 */
 	constructor(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel) {
+		this.context = context;
 		this.outputChannel = outputChannel;
 		this.emsdkInstaller = new EmsdkInstaller(context, outputChannel);
 	}
@@ -225,12 +230,38 @@ export class EmccWrapper {
 		try {
 			const startTime = Date.now();
 
-			const { stderr, stdout } = await execFile(emccPath, args, {
-				cwd: outputDir,
-				maxBuffer: 10 * 1024 * 1024,
-				timeout: 120000, // 2-minute timeout for a first-time SDL2 build
-				shell: process.platform === 'win32', // Use shell on Windows for .bat files
-			});
+			const runLink = () =>
+				execFile(emccPath, args, {
+					cwd: outputDir,
+					maxBuffer: 10 * 1024 * 1024,
+					timeout: 120000, // 2-minute timeout for a first-time SDL2 build
+					shell: process.platform === 'win32', // Use shell on Windows for .bat files
+				});
+
+			// The first compile after installing Emscripten downloads and builds the SDL2
+			// port (a network + build step that can take 1-2 minutes). Show a progress
+			// notification the first time so it doesn't look like the preview has hung.
+			const sdl2Warmed = this.context.globalState.get<boolean>(EmccWrapper.SDL2_WARMED_KEY, false);
+			const { stderr, stdout } = sdl2Warmed
+				? await runLink()
+				: await vscode.window.withProgress(
+						{
+							location: vscode.ProgressLocation.Notification,
+							title: 'LVGL: preparing preview',
+							cancellable: false,
+						},
+						async (progress) => {
+							progress.report({
+								message:
+									'First build — downloading and building the SDL2 port (one-time, may take 1–2 minutes)...',
+							});
+							return runLink();
+						}
+					);
+
+			if (!sdl2Warmed) {
+				await this.context.globalState.update(EmccWrapper.SDL2_WARMED_KEY, true);
+			}
 
 			const duration = Date.now() - startTime;
 			this.outputChannel.appendLine(`✓ Compilation completed in ${duration}ms`);

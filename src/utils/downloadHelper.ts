@@ -21,8 +21,9 @@ export type ProgressCallback = (percent: number) => void;
  * @param {string} url - The URL to download from.
  * @param {string} destPath - The local file path to save the download.
  * @param {ProgressCallback} onProgress - Callback invoked with download progress percentage.
+ * @param {AbortSignal} [signal] - Optional signal to cancel the download in progress.
  * @returns {Promise<void>} Resolves when download completes successfully.
- * @throws {Error} If the download fails or receives a non-200 response.
+ * @throws {Error} If the download fails, receives a non-200 response, or is canceled.
  *
  * @example
  * await downloadFile(
@@ -31,29 +32,70 @@ export type ProgressCallback = (percent: number) => void;
  *   (percent) => console.log(`Downloaded: ${percent}%`)
  * );
  */
-export async function downloadFile(url: string, destPath: string, onProgress: ProgressCallback): Promise<void> {
+export async function downloadFile(
+	url: string,
+	destPath: string,
+	onProgress: ProgressCallback,
+	signal?: AbortSignal
+): Promise<void> {
 	return new Promise((resolve, reject) => {
+		const cleanup = (): void => {
+			if (fs.existsSync(destPath)) {
+				try {
+					fs.unlinkSync(destPath);
+				} catch {
+					// Ignore cleanup failures
+				}
+			}
+		};
+
+		if (signal?.aborted) {
+			reject(new Error('Download cancelled'));
+			return;
+		}
+
+		// Settle the promise exactly once and detach the abort listener, so an abort of
+		// the (possibly reused) signal after the download finishes can't run cleanup()
+		// or reject() on an already-settled download.
+		let settled = false;
+		const finalize = (action: () => void): void => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			signal?.removeEventListener('abort', onAbort);
+			action();
+		};
+
+		const onAbort = (): void => {
+			finalize(() => {
+				request.destroy();
+				file.close();
+				cleanup();
+				reject(new Error('Download cancelled'));
+			});
+		};
+
 		const file = fs.createWriteStream(destPath);
 
-		https
+		const request = https
 			.get(url, (response) => {
 				// Handle redirects
 				if (response.statusCode === 302 || response.statusCode === 301) {
 					const redirectUrl = response.headers.location;
 					if (redirectUrl) {
 						file.close();
-						fs.unlinkSync(destPath);
-						downloadFile(redirectUrl, destPath, onProgress).then(resolve).catch(reject);
+						cleanup();
+						// Hand off to the recursive call, which manages its own abort listener.
+						finalize(() => downloadFile(redirectUrl, destPath, onProgress, signal).then(resolve, reject));
 						return;
 					}
 				}
 
 				if (response.statusCode !== 200) {
 					file.close();
-					if (fs.existsSync(destPath)) {
-						fs.unlinkSync(destPath);
-					}
-					reject(new Error(`Failed to download: ${response.statusCode}`));
+					cleanup();
+					finalize(() => reject(new Error(`Failed to download: ${response.statusCode}`)));
 					return;
 				}
 
@@ -72,15 +114,16 @@ export async function downloadFile(url: string, destPath: string, onProgress: Pr
 
 				file.on('finish', () => {
 					file.close();
-					resolve();
+					finalize(resolve);
 				});
 			})
 			.on('error', (err) => {
 				file.close();
-				if (fs.existsSync(destPath)) {
-					fs.unlinkSync(destPath);
-				}
-				reject(err);
+				cleanup();
+				finalize(() => reject(err));
 			});
+
+		// Cancel the in-flight download when the signal aborts.
+		signal?.addEventListener('abort', onAbort);
 	});
 }
