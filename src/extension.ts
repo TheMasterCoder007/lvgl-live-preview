@@ -85,7 +85,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			// Compilation reads the file from disk, so flush any unsaved edits first.
 			if (editor.document.isDirty) {
-				await editor.document.save();
+				const saved = await editor.document.save();
+				if (!saved) {
+					void vscode.window.showInformationMessage('LVGL Preview start cancelled (file not saved).');
+					return;
+				}
 			}
 
 			// Check if preview is already running
@@ -267,11 +271,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	await showWalkthroughOnFirstRun(context);
 }
 
-/**
- * @brief Opens the Get Started walkthrough the first time the extension runs.
- *
- * @param context - The extension context (provides the persisted "shown" flag).
- */
+// Opens the Get Started walkthrough on first run (see showWalkthroughOnFirstRun below).
 /**
  * @brief Updates status bar visibility based on context.
  *
