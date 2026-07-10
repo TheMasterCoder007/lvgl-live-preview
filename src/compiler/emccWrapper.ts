@@ -2,9 +2,11 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as child_process from 'child_process';
+import * as crypto from 'crypto';
 import * as util from 'util';
 import { CompilationResult, CompilerError } from '../types';
 import { EmsdkInstaller } from './emsdkInstaller';
+import { isCppSource } from '../utils/languageUtils';
 
 const execFile = util.promisify(child_process.execFile);
 
@@ -71,6 +73,35 @@ export class EmccWrapper {
 	}
 
 	/**
+	 * @brief Detects the "missing entry point" linker error and returns a helpful hint.
+	 *
+	 * The linker reports `undefined symbol: lvgl_live_preview_init` when the entry
+	 * point isn't found. For C++ builds this is almost always because the function
+	 * wasn't declared `extern "C"`, so C++ name mangling hid it from the C-linkage
+	 * call in the generated harness. Because this error comes from wasm-ld (not the
+	 * compiler), it isn't in the `file:line:col:` format parseCompilerOutput handles,
+	 * so we synthesize a targeted, actionable diagnostic here.
+	 *
+	 * @param output Raw compiler/linker output.
+	 * @param sourceFile The user's main source file (used to tailor the hint to C vs C++).
+	 * @returns A synthesized CompilerError with guidance, or null if not this error.
+	 */
+	private detectMissingEntryPoint(output: string, sourceFile: string): CompilerError | null {
+		if (!output.includes('undefined symbol: lvgl_live_preview_init')) {
+			return null;
+		}
+
+		const message = isCppSource(sourceFile)
+			? 'Entry point `lvgl_live_preview_init` is undefined. In a C++ file it must be declared ' +
+				'`extern "C" void lvgl_live_preview_init(void)` so C++ name mangling does not hide it, ' +
+				'and defined inside `#ifdef LVGL_LIVE_PREVIEW`.'
+			: 'Entry point `lvgl_live_preview_init` is undefined. Define ' +
+				'`void lvgl_live_preview_init(void)` inside `#ifdef LVGL_LIVE_PREVIEW` as the preview entry point.';
+
+		return { file: sourceFile, line: 1, column: 1, severity: 'error', message };
+	}
+
+	/**
 	 * @brief Compiles source files to object files for incremental builds.
 	 *
 	 * Compiles source files in parallel batches to improve build performance.
@@ -100,8 +131,12 @@ export class EmccWrapper {
 			const batch = sourceFiles.slice(i, Math.min(i + batchSize, sourceFiles.length));
 
 			const promises = batch.map(async (sourceFile) => {
-				const baseName = path.basename(sourceFile, '.c');
-				const objFile = path.join(outputDir, `${baseName}.o`);
+				// Derive an object name that is independent of the source extension
+				// (so .cpp files don't produce "foo.cpp.o") and that can't collide
+				// when two dependencies share a base name in different directories.
+				const baseName = path.parse(sourceFile).name;
+				const pathHash = crypto.createHash('sha1').update(sourceFile).digest('hex').slice(0, 8);
+				const objFile = path.join(outputDir, `${baseName}_${pathHash}.o`);
 
 				// Build args array for execFile
 				const args = [
@@ -160,6 +195,12 @@ export class EmccWrapper {
 	 * @param additionalSourceFiles Array of additional source files to compile alongside main and user files (optional).
 	 * @param wasmMemoryMB Memory size in MB for the generated WebAssembly module (default: 128).
 	 * @returns Promise resolving to CompilationResult with success status, output paths, and any errors/warnings.
+	 *
+	 * @note Mixed C/C++ projects work without any special handling: emcc selects the
+	 * language per input by file extension (.c → C, .cpp/.cc/... → C++), and the
+	 * emscripten linker resolves the C++ standard library (libc++) on demand from the
+	 * sysroot. The generated main.c and LVGL's C drivers therefore stay C while a C++
+	 * entry point / dependency compiles as C++.
 	 */
 	public async compileWithObjects(
 		sourceFile: string,
@@ -302,6 +343,15 @@ export class EmccWrapper {
 
 			const errorOutput = err.stderr || err.stdout || err.message || '';
 			const errors = this.parseCompilerOutput(errorOutput);
+
+			// Surface a targeted hint for the common "forgot the entry point / forgot
+			// extern \"C\"" mistake, which the compiler-output parser can't pick up
+			// because it's a linker (wasm-ld) error, not a file:line:col: diagnostic.
+			const entryPointHint = this.detectMissingEntryPoint(errorOutput, sourceFile);
+			if (entryPointHint) {
+				this.outputChannel.appendLine(`Hint: ${entryPointHint.message}`);
+				errors.unshift(entryPointHint);
+			}
 
 			return {
 				success: false,

@@ -6,6 +6,7 @@ import { PreviewManager } from './preview/previewManager';
 import { CompilationManager } from './compiler/compilationManager';
 import { StatusBarManager } from './ui/statusBarManager';
 import { EmsdkInstaller } from './compiler/emsdkInstaller';
+import { SUPPORTED_LANGUAGE_IDS } from './utils/languageUtils';
 
 let previewManager: PreviewManager | undefined;
 let compilationManager: CompilationManager | undefined;
@@ -72,8 +73,8 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			if (editor.document.languageId !== 'c') {
-				vscode.window.showErrorMessage('LVGL Preview only works with C files');
+			if (!SUPPORTED_LANGUAGE_IDS.includes(editor.document.languageId)) {
+				vscode.window.showErrorMessage('LVGL Preview only works with C and C++ files');
 				return;
 			}
 
@@ -200,6 +201,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
+		vscode.commands.registerCommand('lvgl-preview.createSampleCpp', async () => {
+			await openSampleFileCpp();
+		})
+	);
+
+	context.subscriptions.push(
 		vscode.commands.registerCommand('lvgl-preview.openWalkthrough', async () => {
 			try {
 				await openGetStartedWalkthrough();
@@ -278,9 +285,10 @@ export async function activate(context: vscode.ExtensionContext) {
  * The item is shown only when a C file is the active editor or a preview is running.
  */
 function updateStatusBarVisibility(): void {
-	const isCFile = vscode.window.activeTextEditor?.document.languageId === 'c';
+	const languageId = vscode.window.activeTextEditor?.document.languageId;
+	const isSupportedFile = languageId !== undefined && SUPPORTED_LANGUAGE_IDS.includes(languageId);
 	const running = previewManager?.isRunning() ?? false;
-	statusBarManager?.setVisible(isCFile || running);
+	statusBarManager?.setVisible(isSupportedFile || running);
 }
 
 /**
@@ -390,6 +398,52 @@ static void ui_init(void) {
 // gives the live preview tool a way to initialize your UI
 void lvgl_live_preview_init(void) {
     ui_init();
+}
+#endif
+`;
+
+	fs.mkdirSync(sampleDir, { recursive: true });
+	// Always write the canonical sample (overwrites any previous copy).
+	fs.writeFileSync(samplePath, content, 'utf-8');
+
+	const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(samplePath));
+	await vscode.window.showTextDocument(doc);
+}
+
+/**
+ * @brief Opens a ready-to-run C++ sample that previews an LVGL UI.
+ *
+ * Demonstrates the intended layout for C++ projects: the LVGL UI is still built
+ * with the C API, but the entry point lives in a C++ file. The required
+ * `lvgl_live_preview_init()` entry point is declared `extern "C"` so its name is
+ * not C++-mangled and the generated harness can link against it.
+ */
+async function openSampleFileCpp(): Promise<void> {
+	const sampleDir = path.join(os.tmpdir(), 'lvgl-live-preview');
+	const samplePath = path.join(sampleDir, 'hello_lvgl.cpp');
+	const content = `#include "lvgl.h"
+
+// A small C++ "glue" layer. Your LVGL UI is still written against the C API
+// (see App::buildUi); only the entry point and surrounding code are C++.
+class App {
+public:
+    void buildUi() {
+        lv_obj_t *btn = lv_btn_create(lv_scr_act());
+        lv_obj_set_size(btn, 140, 50);
+        lv_obj_center(btn);
+
+        lv_obj_t *label = lv_label_create(btn);
+        lv_label_set_text(label, "Hello from C++!");
+        lv_obj_center(label);
+    }
+};
+
+#ifdef LVGL_LIVE_PREVIEW
+// The preview calls this entry point by its C name, so it MUST be declared
+// extern "C" — otherwise C++ name mangling hides it and linking fails.
+extern "C" void lvgl_live_preview_init(void) {
+    static App app;
+    app.buildUi();
 }
 #endif
 `;

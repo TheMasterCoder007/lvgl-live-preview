@@ -1,7 +1,7 @@
 {
 	"name": "lvgl-live-preview",
 	"displayName": "LVGL Live Preview",
-	"description": "Live preview for LVGL C code with automatic hot-reload using Emscripten",
+	"description": "Live preview for LVGL C/C++ code with automatic hot-reload using Emscripten",
 	"icon": "assets/icon.png",
 	"version": "0.0.1",
 	"publisher": "themastercoder007",
@@ -23,11 +23,15 @@
 		"gui",
 		"preview",
 		"emscripten",
-		"wasm"
+		"wasm",
+		"c",
+		"cpp",
+		"c++"
 	],
 	"activationEvents": [
 		"onCommand:lvgl-preview.start",
 		"onLanguage:c",
+		"onLanguage:cpp",
 		"onStartupFinished"
 	],
 	"main": "./out/extension.js",
@@ -69,6 +73,11 @@
 				"category": "LVGL Preview"
 			},
 			{
+				"command": "lvgl-preview.createSampleCpp",
+				"title": "LVGL: Open C++ Sample File",
+				"category": "LVGL Preview"
+			},
+			{
 				"command": "lvgl-preview.installToolchain",
 				"title": "LVGL: Install Emscripten Toolchain",
 				"category": "LVGL Preview"
@@ -84,21 +93,21 @@
 				"command": "lvgl-preview.start",
 				"key": "ctrl+shift+l",
 				"mac": "cmd+shift+l",
-				"when": "resourceLangId == c"
+				"when": "resourceLangId == c || resourceLangId == cpp"
 			}
 		],
 		"menus": {
 			"editor/context": [
 				{
 					"command": "lvgl-preview.start",
-					"when": "resourceLangId == c",
+					"when": "resourceLangId == c || resourceLangId == cpp",
 					"group": "navigation"
 				}
 			],
 			"editor/title": [
 				{
 					"command": "lvgl-preview.start",
-					"when": "resourceLangId == c",
+					"when": "resourceLangId == c || resourceLangId == cpp",
 					"group": "navigation"
 				}
 			]
@@ -107,12 +116,12 @@
 			{
 				"id": "lvglGetStarted",
 				"title": "Get Started with LVGL Live Preview",
-				"description": "Preview your LVGL C UI live in VS Code. Set up the toolchain and run your first preview.",
+				"description": "Preview your LVGL C/C++ UI live in VS Code. Set up the toolchain and run your first preview.",
 				"steps": [
 					{
 						"id": "checkSetup",
 						"title": "Check your setup",
-						"description": "LVGL Live Preview compiles your C to WebAssembly using Emscripten, which needs **Python 3** on your PATH and ~1–2 GB of free disk space for the toolchain.\n\nRun a quick environment check to see if you're ready.\n[Check Setup](command:lvgl-preview.checkSetup)",
+						"description": "LVGL Live Preview compiles your C/C++ to WebAssembly using Emscripten, which needs **Python 3** on your PATH and ~1–2 GB of free disk space for the toolchain.\n\nRun a quick environment check to see if you're ready.\n[Check Setup](command:lvgl-preview.checkSetup)",
 						"media": {
 							"markdown": "media/walkthrough/check-setup.md"
 						},
@@ -134,7 +143,7 @@
 					{
 						"id": "createSample",
 						"title": "Open a sample UI",
-						"description": "Open a ready-to-run example that defines the required `lvgl_live_preview_init()` entry point.\n[Open Sample File](command:lvgl-preview.createSample)",
+						"description": "Open a ready-to-run example that defines the required `lvgl_live_preview_init()` entry point.\n[Open Sample File](command:lvgl-preview.createSample)\n\nWriting the glue in C++? Open the C++ version, which drives a C LVGL UI from a C++ entry point.\n[Open C++ Sample File](command:lvgl-preview.createSampleCpp)",
 						"media": {
 							"markdown": "media/walkthrough/sample.md"
 						},
@@ -145,7 +154,7 @@
 					{
 						"id": "startPreview",
 						"title": "Start the live preview",
-						"description": "With your C file open, start the preview from the editor — right-click in the editor and choose **LVGL: Start Live Preview**, or click the preview button in the editor title bar. The **first run installs the Emscripten toolchain** (one-time, ~1–2 GB) and builds the SDL2 port, so it can take a few minutes; then edit and save to hot-reload.",
+						"description": "With your C or C++ file open, start the preview from the editor — right-click in the editor and choose **LVGL: Start Live Preview**, or click the preview button in the editor title bar. The **first run installs the Emscripten toolchain** (one-time, ~1–2 GB) and builds the SDL2 port, so it can take a few minutes; then edit and save to hot-reload.",
 						"media": {
 							"markdown": "media/walkthrough/start.md"
 						},

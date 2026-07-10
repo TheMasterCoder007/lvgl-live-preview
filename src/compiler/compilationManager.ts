@@ -191,8 +191,9 @@ export class CompilationManager implements vscode.Disposable {
 			const mainPath = path.join(this.buildPath, 'main.c');
 			MainTemplate.generateMainFile(mainPath);
 
-			// Create an output directory for this file
-			const fileName = path.basename(mainSourceFile, '.c');
+			// Create an output directory for this file (extension-agnostic so that
+			// both foo.c and foo.cpp map to a clean "foo" directory name).
+			const fileName = path.parse(mainSourceFile).name;
 			const outputDir = path.join(this.buildPath, fileName);
 
 			if (!fs.existsSync(outputDir)) {
@@ -217,7 +218,9 @@ export class CompilationManager implements vscode.Disposable {
 				}
 			}
 
-			// Compile the user file with objects and dependencies
+			// Compile the user file with objects and dependencies. Mixed C/C++ needs no
+			// special handling here: emcc picks each input's language by extension and
+			// links libc++ on demand (see EmccWrapper.compileWithObjects).
 			const result = await this.emccWrapper.compileWithObjects(
 				mainSourceFile,
 				outputDir,

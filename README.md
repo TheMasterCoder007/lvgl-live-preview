@@ -1,12 +1,14 @@
 # LVGL Live Preview
 
-**Live preview for LVGL C code with automatic hot-reload in VS Code**
+**Live preview for LVGL C/C++ code with automatic hot-reload in VS Code**
 
 [![License: GPL](https://img.shields.io/badge/License-GPL-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 ## Overview
 
-LVGL Live Preview is a Visual Studio Code extension that provides real-time preview of LVGL (Light and Versatile Graphics Library) C code. It compiles your LVGL code using Emscripten to WebAssembly and displays the result in a live webview panel with automatic reloading on file changes.
+LVGL Live Preview is a Visual Studio Code extension that provides real-time preview of LVGL (Light and Versatile Graphics Library) UIs. It compiles your LVGL code using Emscripten to WebAssembly and displays the result in a live webview panel with automatic reloading on file changes.
+
+The LVGL UI itself is written against LVGL's C API, but your entry point ("glue") file may be **C or C++** — a common layout for firmware where a C++ application layer initializes a C UI. See [C++ Projects](#c-projects) below.
 
 ## Features
 
@@ -18,7 +20,8 @@ LVGL Live Preview is a Visual Studio Code extension that provides real-time prev
 - 🔀 **Orientation Toggle**: A **Rotate** button swaps display width/height (portrait ⇄ landscape) for the current session, without changing your saved settings
 - 🔍 **Fit to Window**: The preview scales to fit the window (up or down) while preserving aspect ratio; can be toggled off in settings
 - 📦 **Zero Setup**: Emscripten SDK is downloaded and installed automatically
-- 🎯 **Single or Multi-File**: Works with single C files or multi-file projects with dependencies
+- 🎯 **Single or Multi-File**: Works with single C/C++ files or multi-file projects with dependencies
+- ➕ **C and C++**: Preview a C entry point, or a C++ entry point that drives a C LVGL UI
 - 📁 **Dependency Management**: Configure dependencies via `.lvgl-live-preview.json` with incremental compilation
 - 🔧 **Custom Defines**: Add global preprocessor defines to your project
 - 💾 **Smart Caching**: Dependency object files are cached and only recompiled when changed
@@ -50,8 +53,8 @@ Then press F5 to run the extension in development mode.
 
 > **New here?** Open the **Get Started with LVGL Live Preview** walkthrough from the VS Code Welcome page (or run **Welcome: Open Walkthrough**) for a guided setup. It also opens automatically the first time the extension activates.
 
-1. Create a new C file with LVGL code
-2. Define a `lvgl_live_preview_init()` function wrapped in `#ifdef LVGL_LIVE_PREVIEW` that calls your own UI initialization (required entry point)
+1. Create a new C (or C++) file with LVGL code
+2. Define a `lvgl_live_preview_init()` function wrapped in `#ifdef LVGL_LIVE_PREVIEW` that calls your own UI initialization (required entry point; in a C++ file declare it `extern "C"`)
 3. Press `Ctrl+Shift+L` or run "LVGL: Start Live Preview" from the command palette
 4. Wait for the Emscripten toolchain to install (first time only; downloads and installs ~1–2 GB and requires Python 3 on your PATH). The very first preview also downloads the SDL2 port.
 5. Your LVGL UI will appear in a webview panel!
@@ -81,21 +84,67 @@ void lvgl_live_preview_init(void) {
 #endif
 ```
 
+### C++ Projects
+
+The extension also previews **C++** entry points. This suits the common firmware layout where the LVGL UI is written in C (because that is how LVGL is designed) but the glue layer that initializes it lives in a `.cpp` file.
+
+Two things to know:
+
+1. **The entry point must be `extern "C"`.** The generated harness calls `lvgl_live_preview_init` by its C name, so declaring it `extern "C"` prevents C++ name mangling from hiding it at link time.
+2. **Mixed C and C++ builds just work.** Emscripten selects each file's language by extension (`.c` → C, `.cpp`/`.cc`/`.cxx`/`.c++` → C++) and links the C++ standard library on demand, so your C++ entry point and C UI compile together with no extra configuration.
+
+Run **LVGL: Open C++ Sample File** from the Command Palette for a ready-to-run example, or use this layout:
+
+```cpp
+#include "lvgl.h"
+
+// C++ application/glue layer. The UI is still built with LVGL's C API.
+class App {
+public:
+    void buildUi() {
+        lv_obj_t *btn = lv_btn_create(lv_scr_act());
+        lv_obj_set_size(btn, 140, 50);
+        lv_obj_center(btn);
+
+        lv_obj_t *label = lv_label_create(btn);
+        lv_label_set_text(label, "Hello from C++!");
+        lv_obj_center(label);
+    }
+};
+
+#ifdef LVGL_LIVE_PREVIEW
+// MUST be extern "C" so the name isn't mangled and the harness can link it.
+extern "C" void lvgl_live_preview_init(void) {
+    static App app;
+    app.buildUi();
+}
+#endif
+```
+
+For a mixed project (C++ entry point and C UI files), point `mainFile` at the `.cpp` file and list your `.c` UI files under `dependencies` in `.lvgl-live-preview.json`:
+
+```json
+{
+  "mainFile": "app.cpp",
+  "dependencies": ["ui/screen_main.c", "ui/widgets.c"]
+}
+```
+
 ## Requirements
 
 - **Python 3**: Must be installed and on your system PATH. It is required both to install the Emscripten SDK and to run `emcc` (which is a Python program), so it is needed for every build, not just setup. [Download Python](https://www.python.org/downloads/)
 - **Disk space**: The Emscripten toolchain installs to the extension's storage and needs ~1–2 GB free. It is pinned to a specific, tested version for reproducible builds.
 - **Setup diagnostics**: Run **LVGL: Check Setup** from the Command Palette to verify Python, Emscripten, disk space, and network connectivity.
-- **Required Entry Point**: Your main C file must define a `void lvgl_live_preview_init(void)` function wrapped in `#ifdef LVGL_LIVE_PREVIEW`. Call your application's own UI initialization from it (see the example above) so the same code drives both the preview and your firmware. The `LVGL_LIVE_PREVIEW` define is automatically provided by the extension during compilation, ensuring the function is only visible when using the live preview feature.
+- **Required Entry Point**: Your main file must define a `void lvgl_live_preview_init(void)` function wrapped in `#ifdef LVGL_LIVE_PREVIEW`. Call your application's own UI initialization from it (see the example above) so the same code drives both the preview and your firmware. The `LVGL_LIVE_PREVIEW` define is automatically provided by the extension during compilation, ensuring the function is only visible when using the live preview feature. In a **C++** entry-point file, declare it `extern "C"` (see [C++ Projects](#c-projects)).
 - **LVGL API**: Use standard LVGL API calls. The extension supports LVGL v8.x and v9.x.
 
 ## Usage Modes
 
 ### Single File Mode
-If no `.lvgl-live-preview.json` configuration file is found, the extension operates in single-file mode. Simply open a C file with LVGL code and start the preview.
+If no `.lvgl-live-preview.json` configuration file is found, the extension operates in single-file mode. Simply open a C or C++ file with LVGL code and start the preview.
 
 ### Multi-File Mode (Project Configuration)
-For projects with multiple C files, create a `.lvgl-live-preview.json` file at your project root:
+For projects with multiple source files, create a `.lvgl-live-preview.json` file at your project root:
 
 ```json
 {
@@ -117,8 +166,8 @@ For projects with multiple C files, create a `.lvgl-live-preview.json` file at y
 ```
 
 **Configuration Options:**
-- `mainFile` (required): Path to the main C file containing `lvgl_live_preview_init()`. Paths are relative to the config file location.
-- `dependencies` (optional): Array of C files to compile with the main file. These are compiled to `.o` files and cached.
+- `mainFile` (required): Path to the main source file (`.c` or `.cpp`) containing `lvgl_live_preview_init()`. Paths are relative to the config file location.
+- `dependencies` (optional): Array of source files (`.c` and/or `.cpp`) to compile with the main file. These are compiled to `.o` files and cached.
 - `includePaths` (optional): Array of include directory paths for header files. Paths are relative to the config file location.
 - `defines` (optional): Array of preprocessor defines to add during compilation.
 
@@ -151,10 +200,12 @@ All settings are managed from the **preview window** — they are stored by the 
 
 | Command | Shortcut | Description |
 |---------|----------|-------------|
-| `LVGL: Start Live Preview` | `Ctrl+Shift+L` | Start preview for the current C file |
+| `LVGL: Start Live Preview` | `Ctrl+Shift+L` | Start preview for the current C/C++ file |
 | `LVGL: Stop Preview` | - | Stop the preview and file watcher |
 | `LVGL: Force Rebuild` | - | Force full rebuild including LVGL library |
 | `LVGL: Clear Cache` | - | Clear compiled cache |
+| `LVGL: Open Sample File` | - | Open a ready-to-run C sample |
+| `LVGL: Open C++ Sample File` | - | Open a ready-to-run C++ sample (C++ glue driving a C UI) |
 | `LVGL: Check Setup` | - | Diagnose the environment (Python, Emscripten, disk space, network) |
 | `LVGL: Reinstall Emscripten Toolchain` | - | Delete and reinstall the Emscripten toolchain |
 
@@ -172,9 +223,9 @@ Logging uses LVGL's built-in `printf` log target, so no extra setup is required.
 ## How It Works
 
 1. **Emscripten Setup**: Downloads and installs Emscripten SDK on first use
-2. **LVGL Download**: Downloads specified LVGL version from GitHub
-3. **Library Compilation**: Compiles LVGL library to static library (cached per version/settings)
-4. **User Code Compilation**: Compiles your C file with LVGL
+2. **LVGL Download**: Downloads a specified LVGL version from GitHub
+3. **Library Compilation**: Compiles LVGL library to a static library (cached per version/settings)
+4. **User Code Compilation**: Compiles your C/C++ code with LVGL (extension selects each file's language)
 5. **WASM Generation**: Links everything into WebAssembly + JS glue code
 6. **Preview**: Displays in webview with SDL2 canvas rendering
 7. **Hot Reload**: Watches file changes, recompiles, and fully reloads the WASM module through webview recreation

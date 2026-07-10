@@ -1,6 +1,6 @@
 ## Check your setup
 
-LVGL Live Preview builds your C into WebAssembly with **Emscripten**.
+LVGL Live Preview builds your C/C++ into WebAssembly with **Emscripten**.
 
 **Requirements**
 

@@ -1,6 +1,6 @@
 ## Live preview
 
-Start the preview from an open C file. On the **first run**, the extension installs the
+Start the preview from an open C or C++ file. On the **first run**, the extension installs the
 Emscripten toolchain (one-time, ~1–2 GB) and builds the SDL2 port — later builds are fast.
 
 - Shortcut: `Ctrl+Shift+L` (`Cmd+Shift+L` on macOS)
