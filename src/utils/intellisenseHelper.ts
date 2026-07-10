@@ -101,16 +101,16 @@ export class IntellisenseHelper {
 			// Only take over the compiler when one isn't already configured, so we don't
 			// override the user's (or the C/C++ extension's auto-detected) choice.
 			const willSetCompiler = Boolean(compilerPath) && !configuration.compilerPath;
+			const willUseBundledCompiler =
+				Boolean(compilerPath) && (willSetCompiler || configuration.compilerPath === compilerPath);
 
 			// Always ensure LVGL headers. Add the Emscripten sysroot (C stdlib, SDL2,
-			// libc++) only when we also point the compiler at emcc — otherwise a
-			// different toolchain's headers are already in play and mixing in
-			// Emscripten's libc++ would cause duplicate-symbol noise in the editor.
+			// libc++) only when IntelliSense is (or will be) pointed at the bundled emcc —
+			// otherwise a different toolchain's headers are already in play.
 			const pathsToEnsure = [lvglIncludePath, path.join(lvglIncludePath, 'src')];
-			if (willSetCompiler) {
+			if (willUseBundledCompiler) {
 				pathsToEnsure.push(...systemIncludePaths);
 			}
-
 			for (const includePath of pathsToEnsure) {
 				// Normalize path separators for comparison
 				const normalizedPath = includePath.replace(/\\/g, '/');

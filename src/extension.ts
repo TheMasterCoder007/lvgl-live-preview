@@ -282,7 +282,7 @@ export async function activate(context: vscode.ExtensionContext) {
 /**
  * @brief Updates status bar visibility based on context.
  *
- * The item is shown only when a C file is the active editor or a preview is running.
+ * The item is shown only when a supported C/C++ file is the active editor or a preview is running.
  */
 function updateStatusBarVisibility(): void {
 	const languageId = vscode.window.activeTextEditor?.document.languageId;
