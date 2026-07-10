@@ -374,8 +374,8 @@ async function openSampleFile(): Promise<void> {
 	const samplePath = path.join(sampleDir, 'hello_lvgl.c');
 	const content = `#include "lvgl.h"
 
-#ifdef LVGL_LIVE_PREVIEW
-void lvgl_live_preview_init(void) {
+// initializes your UI (entry point of your application)
+static void ui_init(void) {
     // Create a simple button
     lv_obj_t *btn = lv_btn_create(lv_scr_act());
     lv_obj_set_size(btn, 120, 50);
@@ -385,14 +385,18 @@ void lvgl_live_preview_init(void) {
     lv_label_set_text(label, "Hello LVGL!");
     lv_obj_center(label);
 }
+
+#ifdef LVGL_LIVE_PREVIEW
+// gives the live preview tool a way to initialize your UI
+void lvgl_live_preview_init(void) {
+    ui_init();
+}
 #endif
 `;
 
 	fs.mkdirSync(sampleDir, { recursive: true });
-	// Only write if missing so re-opening the sample doesn't discard edits.
-	if (!fs.existsSync(samplePath)) {
-		fs.writeFileSync(samplePath, content, 'utf-8');
-	}
+	// Always write the canonical sample (overwrites any previous copy).
+	fs.writeFileSync(samplePath, content, 'utf-8');
 
 	const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(samplePath));
 	await vscode.window.showTextDocument(doc);

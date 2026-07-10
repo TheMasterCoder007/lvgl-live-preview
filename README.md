@@ -51,7 +51,7 @@ Then press F5 to run the extension in development mode.
 > **New here?** Open the **Get Started with LVGL Live Preview** walkthrough from the VS Code Welcome page (or run **Welcome: Open Walkthrough**) for a guided setup. It also opens automatically the first time the extension activates.
 
 1. Create a new C file with LVGL code
-2. Define a `lvgl_live_preview_init()` function wrapped in `#ifdef LVGL_LIVE_PREVIEW` (required entry point)
+2. Define a `lvgl_live_preview_init()` function wrapped in `#ifdef LVGL_LIVE_PREVIEW` that calls your own UI initialization (required entry point)
 3. Press `Ctrl+Shift+L` or run "LVGL: Start Live Preview" from the command palette
 4. Wait for the Emscripten toolchain to install (first time only; downloads and installs ~1–2 GB and requires Python 3 on your PATH). The very first preview also downloads the SDL2 port.
 5. Your LVGL UI will appear in a webview panel!
@@ -61,8 +61,8 @@ Then press F5 to run the extension in development mode.
 ```c
 #include "lvgl.h"
 
-#ifdef LVGL_LIVE_PREVIEW
-void lvgl_live_preview_init(void) {
+// initializes your UI (entry point of your application)
+static void ui_init(void) {
     // Create a simple button
     lv_obj_t *btn = lv_btn_create(lv_scr_act());
     lv_obj_set_size(btn, 120, 50);
@@ -72,6 +72,12 @@ void lvgl_live_preview_init(void) {
     lv_label_set_text(label, "Hello LVGL!");
     lv_obj_center(label);
 }
+
+#ifdef LVGL_LIVE_PREVIEW
+// gives the live preview tool a way to initialize your UI
+void lvgl_live_preview_init(void) {
+    ui_init();
+}
 #endif
 ```
 
@@ -80,7 +86,7 @@ void lvgl_live_preview_init(void) {
 - **Python 3**: Must be installed and on your system PATH. It is required both to install the Emscripten SDK and to run `emcc` (which is a Python program), so it is needed for every build, not just setup. [Download Python](https://www.python.org/downloads/)
 - **Disk space**: The Emscripten toolchain installs to the extension's storage and needs ~1–2 GB free. It is pinned to a specific, tested version for reproducible builds.
 - **Setup diagnostics**: Run **LVGL: Check Setup** from the Command Palette to verify Python, Emscripten, disk space, and network connectivity.
-- **Required Entry Point**: Your main C file must define a `void lvgl_live_preview_init(void)` function wrapped in `#ifdef LVGL_LIVE_PREVIEW`. This is where you initialize your LVGL UI. The `LVGL_LIVE_PREVIEW` define is automatically provided by the extension during compilation, ensuring the function is only visible when using the live preview feature.
+- **Required Entry Point**: Your main C file must define a `void lvgl_live_preview_init(void)` function wrapped in `#ifdef LVGL_LIVE_PREVIEW`. Call your application's own UI initialization from it (see the example above) so the same code drives both the preview and your firmware. The `LVGL_LIVE_PREVIEW` define is automatically provided by the extension during compilation, ensuring the function is only visible when using the live preview feature.
 - **LVGL API**: Use standard LVGL API calls. The extension supports LVGL v8.x and v9.x.
 
 ## Usage Modes
