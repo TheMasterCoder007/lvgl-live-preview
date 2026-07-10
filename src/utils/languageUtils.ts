@@ -11,6 +11,13 @@
 /** File extensions treated as C++ translation units. */
 export const CPP_EXTENSIONS = ['.cpp', '.cc', '.cxx', '.c++', '.cppm', '.ixx'];
 
+/**
+ * File extensions treated as headers. VS Code reports a `c`/`cpp` languageId for
+ * these too, but a header is not a valid preview entry point — compiling one
+ * directly produces confusing errors — so they are rejected up front.
+ */
+export const HEADER_EXTENSIONS = ['.h', '.hpp', '.hh', '.hxx', '.h++', '.hp', '.tcc', '.inc'];
+
 /** VS Code languageIds accepted as previewable LVGL sources. */
 export const SUPPORTED_LANGUAGE_IDS = ['c', 'cpp'];
 
@@ -24,6 +31,19 @@ export const SUPPORTED_LANGUAGE_IDS = ['c', 'cpp'];
 export function isCppSource(filePath: string): boolean {
 	const lower = filePath.toLowerCase();
 	return CPP_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
+/**
+ * @brief Returns true if the given file path is a C/C++ header file.
+ *
+ * Detection is by extension (case-insensitive). Headers share the `c`/`cpp`
+ * languageId with sources but cannot be previewed on their own.
+ *
+ * @param filePath Path or file name to inspect.
+ */
+export function isHeaderFile(filePath: string): boolean {
+	const lower = filePath.toLowerCase();
+	return HEADER_EXTENSIONS.some((ext) => lower.endsWith(ext));
 }
 
 /**

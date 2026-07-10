@@ -6,7 +6,7 @@ import { PreviewManager } from './preview/previewManager';
 import { CompilationManager } from './compiler/compilationManager';
 import { StatusBarManager } from './ui/statusBarManager';
 import { EmsdkInstaller } from './compiler/emsdkInstaller';
-import { SUPPORTED_LANGUAGE_IDS } from './utils/languageUtils';
+import { SUPPORTED_LANGUAGE_IDS, isHeaderFile } from './utils/languageUtils';
 
 let previewManager: PreviewManager | undefined;
 let compilationManager: CompilationManager | undefined;
@@ -73,14 +73,19 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			if (!SUPPORTED_LANGUAGE_IDS.includes(editor.document.languageId)) {
-				vscode.window.showErrorMessage('LVGL Preview only works with C and C++ files');
+			// The preview compiles the file by its path, so it must exist on disk.
+			// Check this before the file-type check so an unsaved buffer gets the
+			// correct "save first" message rather than a type error.
+			if (editor.document.isUntitled) {
+				vscode.window.showErrorMessage('Please save this file to disk before starting the LVGL preview.');
 				return;
 			}
 
-			// The preview compiles the file by its path, so it must exist on disk.
-			if (editor.document.isUntitled) {
-				vscode.window.showErrorMessage('Please save this file to disk before starting the LVGL preview.');
+			// Must be a C/C++ source file. Reject headers explicitly: VS Code reports a
+			// `c`/`cpp` languageId for .h/.hpp too, but compiling a header directly
+			// produces confusing errors.
+			if (!SUPPORTED_LANGUAGE_IDS.includes(editor.document.languageId) || isHeaderFile(editor.document.uri.fsPath)) {
+				vscode.window.showErrorMessage('LVGL Preview must be started from a C or C++ source file, not a header.');
 				return;
 			}
 
