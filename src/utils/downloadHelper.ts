@@ -54,6 +54,28 @@ export async function downloadFile(
 			return;
 		}
 
+		// Settle the promise exactly once and detach the abort listener, so an abort of
+		// the (possibly reused) signal after the download finishes can't run cleanup()
+		// or reject() on an already-settled download.
+		let settled = false;
+		const finalize = (action: () => void): void => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			signal?.removeEventListener('abort', onAbort);
+			action();
+		};
+
+		const onAbort = (): void => {
+			finalize(() => {
+				request.destroy();
+				file.close();
+				cleanup();
+				reject(new Error('Download cancelled'));
+			});
+		};
+
 		const file = fs.createWriteStream(destPath);
 
 		const request = https
@@ -64,7 +86,8 @@ export async function downloadFile(
 					if (redirectUrl) {
 						file.close();
 						cleanup();
-						downloadFile(redirectUrl, destPath, onProgress, signal).then(resolve).catch(reject);
+						// Hand off to the recursive call, which manages its own abort listener.
+						finalize(() => downloadFile(redirectUrl, destPath, onProgress, signal).then(resolve, reject));
 						return;
 					}
 				}
@@ -72,7 +95,7 @@ export async function downloadFile(
 				if (response.statusCode !== 200) {
 					file.close();
 					cleanup();
-					reject(new Error(`Failed to download: ${response.statusCode}`));
+					finalize(() => reject(new Error(`Failed to download: ${response.statusCode}`)));
 					return;
 				}
 
@@ -91,27 +114,16 @@ export async function downloadFile(
 
 				file.on('finish', () => {
 					file.close();
-					resolve();
+					finalize(resolve);
 				});
 			})
 			.on('error', (err) => {
 				file.close();
 				cleanup();
-				reject(err);
+				finalize(() => reject(err));
 			});
 
 		// Cancel the in-flight download when the signal aborts.
-		if (signal) {
-			signal.addEventListener(
-				'abort',
-				() => {
-					request.destroy();
-					file.close();
-					cleanup();
-					reject(new Error('Download cancelled'));
-				},
-				{ once: true }
-			);
-		}
+		signal?.addEventListener('abort', onAbort);
 	});
 }
