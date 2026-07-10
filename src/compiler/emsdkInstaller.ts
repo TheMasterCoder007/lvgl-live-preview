@@ -104,8 +104,18 @@ export class EmsdkInstaller {
 			try {
 				const { stdout, stderr } = await this.execCancellable(`${cmd} --version`);
 				const version = (stdout || stderr || '').trim();
-				this.outputChannel.appendLine(`Found Python: ${version}`);
-				return version || cmd;
+
+				// Emscripten requires Python 3; a bare `python` may still be Python 2.
+				// Parse the reported major version and skip anything older than 3.
+				const major = parseInt(version.match(/Python\s+(\d+)\./i)?.[1] ?? '', 10);
+				if (major >= 3) {
+					this.outputChannel.appendLine(`Found Python: ${version}`);
+					return version || cmd;
+				}
+
+				this.outputChannel.appendLine(
+					`Ignoring '${cmd}' - Python 3 is required (found: ${version || 'unknown version'})`
+				);
 			} catch {
 				// Try the next command
 			}
