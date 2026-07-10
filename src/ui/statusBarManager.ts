@@ -33,7 +33,21 @@ export class StatusBarManager implements vscode.Disposable {
 		this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 		this.statusBarItem.command = 'lvgl-preview.start';
 		this.updateStatusBar();
-		this.statusBarItem.show();
+		// Visibility is controlled by the extension (see setVisible) so the item does not
+		// clutter windows that have nothing to do with LVGL.
+	}
+
+	/**
+	 * @brief Shows or hides the status bar item.
+	 *
+	 * @param visible Whether the status bar item should be visible.
+	 */
+	public setVisible(visible: boolean) {
+		if (visible) {
+			this.statusBarItem.show();
+		} else {
+			this.statusBarItem.hide();
+		}
 	}
 
 	/**

@@ -27,7 +27,8 @@
 	],
 	"activationEvents": [
 		"onCommand:lvgl-preview.start",
-		"onLanguage:c"
+		"onLanguage:c",
+		"onStartupFinished"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -65,6 +66,16 @@
 			{
 				"command": "lvgl-preview.createSample",
 				"title": "LVGL: Open Sample File",
+				"category": "LVGL Preview"
+			},
+			{
+				"command": "lvgl-preview.installToolchain",
+				"title": "LVGL: Install Emscripten Toolchain",
+				"category": "LVGL Preview"
+			},
+			{
+				"command": "lvgl-preview.openWalkthrough",
+				"title": "LVGL: Open Get Started Walkthrough",
 				"category": "LVGL Preview"
 			}
 		],
@@ -110,6 +121,17 @@
 						]
 					},
 					{
+						"id": "installToolchain",
+						"title": "Install the Emscripten toolchain",
+						"description": "The extension uses its own **bundled** copy of Emscripten (a system-wide `emcc` is not used), installed into the extension's storage. If **Check Setup** reported it as missing, install it now — this is a one-time ~1–2 GB download and needs Python 3.\n[Install Toolchain](command:lvgl-preview.installToolchain)",
+						"media": {
+							"markdown": "media/walkthrough/install.md"
+						},
+						"completionEvents": [
+							"onCommand:lvgl-preview.installToolchain"
+						]
+					},
+					{
 						"id": "createSample",
 						"title": "Open a sample UI",
 						"description": "Open a ready-to-run example that defines the required `lvgl_live_preview_init()` entry point.\n[Open Sample File](command:lvgl-preview.createSample)",
@@ -123,7 +145,7 @@
 					{
 						"id": "startPreview",
 						"title": "Start the live preview",
-						"description": "With a C file open, start the preview. The **first run installs the Emscripten toolchain** (one-time, ~1–2 GB) and builds the SDL2 port, so it can take a few minutes.\n\nPress `kb(lvgl-preview.start)` or use the button below.\n[Start Live Preview](command:lvgl-preview.start)",
+						"description": "With your C file open, start the preview from the editor — right-click in the editor and choose **LVGL: Start Live Preview**, or click the preview button in the editor title bar. The **first run installs the Emscripten toolchain** (one-time, ~1–2 GB) and builds the SDL2 port, so it can take a few minutes; then edit and save to hot-reload.",
 						"media": {
 							"markdown": "media/walkthrough/start.md"
 						},

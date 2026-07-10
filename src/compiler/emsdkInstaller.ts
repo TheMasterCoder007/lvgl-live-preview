@@ -325,7 +325,7 @@ export class EmsdkInstaller {
 				: {
 						name: 'Emscripten toolchain',
 						status: 'fail',
-						detail: `Not installed. Start a preview or run "LVGL: Reinstall Emscripten Toolchain" (installs pinned ${EmsdkInstaller.EMSCRIPTEN_VERSION}).`,
+						detail: `Not installed. The extension uses its own bundled Emscripten (a system-wide emcc is not used). Run "LVGL: Install Emscripten Toolchain" or start a preview to install it (pinned ${EmsdkInstaller.EMSCRIPTEN_VERSION}).`,
 					}
 		);
 

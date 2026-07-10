@@ -17,10 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a "Scale preview to fit the window" setting (enabled by default) that scales the preview to fit the available area while keeping its aspect ratio — scaling down in a small window and up in a large one. It updates live as the window is resized
 - Added an "LVGL: Check Setup" command that diagnoses the environment (Python, Emscripten toolchain, free disk space, and network) and reports exactly what is missing
 - Added an "LVGL: Reinstall Emscripten Toolchain" command that deletes and cleanly re-installs the toolchain (useful after a failed or partial install)
+- Added an "LVGL: Install Emscripten Toolchain" command to install the bundled toolchain directly. "Check Setup" now offers an "Install Emscripten" action when it is missing, and the walkthrough has a dedicated installation step — clarifying that the extension uses its own bundled copy rather than a system-wide `emcc`
 - Added a "Get Started with LVGL Live Preview" walkthrough (shown on the VS Code Welcome page and opened on the first run) that guides you through checking your setup, opening a sample, and starting your first preview
+- Added an "LVGL: Open Get Started Walkthrough" command to reopen the walkthrough at any time
 - Added an "LVGL: Open Sample File" command that opens a ready-to-run example
 
 ### Changed
+- The LVGL status bar item now appears only when a C file is the active editor or a preview is running, instead of always being shown
 - The Emscripten toolchain version (3.1.50) is now pinned explicitly in code rather than relying on the emsdk installer's `latest` alias, so the installed version stays fixed even if the bundled emsdk release is bumped later
 - The toolchain installation is now cancellable and cleans up partial installations on cancellation or failure, so a retry always starts from a clean state
 - The first build now shows progress while the SDL2 port downloads/compiles (a one-time step that previously looked like a hang), and the install prompt now states the real ~1–2 GB toolchain size and Python requirement
@@ -33,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Saving settings no longer clears the entire build cache; the LVGL library and dependency caches self-invalidate based on the settings that actually affect their output (use "LVGL: Force Rebuild" for a full clean rebuild)
 
 ### Fixed
+- Fixed the walkthrough's sample file failing to compile ("No such file or directory") because it opened as an unsaved, untitled document. The sample is now written to a real file on disk. Starting a preview on an untitled file now shows a clear "save first" message, and unsaved edits are saved before building
 - Fixed `lvglMemorySize` and `wasmMemorySize` changes not triggering a rebuild of the running preview
 - Fixed keyboard entry being blocked in the settings panel by scoping SDL's keyboard capture to the preview canvas
 
