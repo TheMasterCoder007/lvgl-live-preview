@@ -155,9 +155,16 @@ export class CompilationManager implements vscode.Disposable {
 			const lvglPath = await this.versionManager.ensureVersion(lvglVersion);
 			this.outputChannel.appendLine(`LVGL path: ${lvglPath}`);
 
-			// Update IntelliSense configuration
+			// Update IntelliSense configuration. Pass the bundled emcc as the compiler
+			// and the Emscripten sysroot includes so C++ preview files resolve the C++
+			// standard library (and SDL/emscripten headers) in the editor.
 			const workspaceFolder = vscode.workspace.getWorkspaceFolder(fileUri);
-			await IntellisenseHelper.updateCppProperties(lvglPath, workspaceFolder);
+			await IntellisenseHelper.updateCppProperties(
+				lvglPath,
+				workspaceFolder,
+				this.emccWrapper.getCompilerPath(),
+				this.emccWrapper.getSystemIncludePaths()
+			);
 
 			// Build or get cached LVGL object files
 			this.outputChannel.appendLine('Checking for LVGL objects...');
@@ -191,8 +198,9 @@ export class CompilationManager implements vscode.Disposable {
 			const mainPath = path.join(this.buildPath, 'main.c');
 			MainTemplate.generateMainFile(mainPath);
 
-			// Create an output directory for this file
-			const fileName = path.basename(mainSourceFile, '.c');
+			// Create an output directory for this file (extension-agnostic so that
+			// both foo.c and foo.cpp map to a clean "foo" directory name).
+			const fileName = path.parse(mainSourceFile).name;
 			const outputDir = path.join(this.buildPath, fileName);
 
 			if (!fs.existsSync(outputDir)) {
@@ -217,7 +225,9 @@ export class CompilationManager implements vscode.Disposable {
 				}
 			}
 
-			// Compile the user file with objects and dependencies
+			// Compile the user file with objects and dependencies. Mixed C/C++ needs no
+			// special handling here: emcc picks each input's language by extension and
+			// links libc++ on demand (see EmccWrapper.compileWithObjects).
 			const result = await this.emccWrapper.compileWithObjects(
 				mainSourceFile,
 				outputDir,

@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added C++ support: the preview now accepts C++ entry points (`.cpp`/`.cc`/`.cxx`/`.c++`) in addition to C, so a C++ "glue" layer can initialize a C LVGL UI. Mixed C/C++ projects build with no extra configuration — Emscripten selects each file's language by extension and links the C++ standard library on demand. In a C++ entry point, declare `lvgl_live_preview_init` as `extern "C"`.
+- Added an "LVGL: Open C++ Sample File" command with a ready-to-run example
 - Added an in-preview settings panel: a gear button in the top-right corner of the preview window opens a panel for editing all settings without leaving the preview
 - Added an "LVGL Runtime" output channel that shows the previewed app's runtime output (`printf` and `LV_LOG_*` messages) directly in VS Code, instead of only in the webview developer tools console. The channel reveals itself on the first log of each preview session
 - Added a "Rotate" toolbar button that toggles the preview orientation by swapping the display width and height for the current session. The swap is temporary — it does not change your saved settings and resets to the saved orientation when a new preview session starts

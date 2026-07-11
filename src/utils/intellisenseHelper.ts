@@ -46,13 +46,18 @@ export class IntellisenseHelper {
 	 *
 	 * @param lvglIncludePath The root path to the LVGL library headers
 	 * @param workspaceFolder The VS Code workspace folder where configuration will be created
+	 * @param compilerPath Optional path to the bundled emcc, set as `compilerPath` so IntelliSense
+	 *                     picks up Emscripten's system headers, defines, and wasm target (C++ stdlib included)
+	 * @param systemIncludePaths Optional Emscripten sysroot include dirs (C stdlib, SDL2, libc++)
 	 * @returns Promise that resolves when the configuration is updated
 	 *
 	 * @note If no workspace folder is provided, the method returns early without making changes
 	 */
 	public static async updateCppProperties(
 		lvglIncludePath: string,
-		workspaceFolder?: vscode.WorkspaceFolder
+		workspaceFolder?: vscode.WorkspaceFolder,
+		compilerPath?: string,
+		systemIncludePaths: string[] = []
 	): Promise<void> {
 		if (!workspaceFolder) {
 			// No workspace folder, can't create c_cpp_properties.json
@@ -87,28 +92,44 @@ export class IntellisenseHelper {
 			config.configurations = [this.createDefaultConfiguration()];
 		}
 
-		// Update each configuration with LVGL include paths
+		// Update each configuration with LVGL and Emscripten include paths
 		for (const configuration of config.configurations) {
 			if (!configuration.includePath) {
 				configuration.includePath = [];
 			}
 
-			const lvglPaths = [lvglIncludePath, path.join(lvglIncludePath, 'src')];
+			// Only take over the compiler when one isn't already configured, so we don't
+			// override the user's (or the C/C++ extension's auto-detected) choice.
+			const willSetCompiler = Boolean(compilerPath) && !configuration.compilerPath;
+			const willUseBundledCompiler =
+				Boolean(compilerPath) && (willSetCompiler || configuration.compilerPath === compilerPath);
 
-			// Add LVGL paths if not already present
-			for (const lvglPath of lvglPaths) {
+			// Always ensure LVGL headers. Add the Emscripten sysroot (C stdlib, SDL2,
+			// libc++) only when IntelliSense is (or will be) pointed at the bundled emcc —
+			// otherwise a different toolchain's headers are already in play.
+			const pathsToEnsure = [lvglIncludePath, path.join(lvglIncludePath, 'src')];
+			if (willUseBundledCompiler) {
+				pathsToEnsure.push(...systemIncludePaths);
+			}
+			for (const includePath of pathsToEnsure) {
 				// Normalize path separators for comparison
-				const normalizedPath = lvglPath.replace(/\\/g, '/');
+				const normalizedPath = includePath.replace(/\\/g, '/');
 				const exists = configuration.includePath.some((p: string) => p.replace(/\\/g, '/') === normalizedPath);
 
 				if (!exists) {
-					configuration.includePath.push(lvglPath);
+					configuration.includePath.push(includePath);
 				}
 			}
 
 			// Ensure standard paths are included
 			if (!configuration.includePath.includes('${workspaceFolder}/**')) {
 				configuration.includePath.unshift('${workspaceFolder}/**');
+			}
+
+			// Point IntelliSense at the bundled emcc so it uses Emscripten's own system
+			// headers, defines, and wasm target (which includes the C++ standard library).
+			if (willSetCompiler) {
+				configuration.compilerPath = compilerPath;
 			}
 		}
 
