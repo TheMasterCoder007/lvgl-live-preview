@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-07-10
+
 ### Added
 - Added C++ support: the preview now accepts C++ entry points (`.cpp`/`.cc`/`.cxx`/`.c++`) in addition to C, so a C++ "glue" layer can initialize a C LVGL UI. Mixed C/C++ projects build with no extra configuration — Emscripten selects each file's language by extension and links the C++ standard library on demand. In a C++ entry point, declare `lvgl_live_preview_init` as `extern "C"`.
 - Added an "LVGL: Open C++ Sample File" command with a ready-to-run example
@@ -29,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Emscripten toolchain version (3.1.50) is now pinned explicitly in code rather than relying on the emsdk installer's `latest` alias, so the installed version stays fixed even if the bundled emsdk release is bumped later
 - The toolchain installation is now cancellable and cleans up partial installations on cancellation or failure, so a retry always starts from a clean state
 - The first build now shows progress while the SDL2 port downloads/compiles (a one-time step that previously looked like a hang), and the install prompt now states the real ~1–2 GB toolchain size and Python requirement
-- Settings are now owned entirely by the preview and stored by the extension; they no longer appear in the VS Code Settings UI. Existing `lvglPreview.*` values are migrated automatically on first use
+- **BREAKING:** Settings are now owned entirely by the preview and stored by the extension; they no longer appear in the VS Code Settings UI, and `lvglPreview.*` entries in your VS Code `settings.json` (including committed workspace settings) are no longer read after the first run. Your existing settings are not lost — any `lvglPreview.*` values are migrated automatically into the extension's own storage the first time the preview runs, so previous configurations carry over. Adjust settings afterward from the in-preview settings panel (the gear button in the preview window)
 - The preview rebuilds/reloads only when settings are saved and only once per save regardless of how many fields were edited. Closing the popup without saving will keep the old settings.
 - Removed the per-field reload that occurred when editing settings through the VS Code Settings UI
 

@@ -15,19 +15,15 @@ The LVGL UI itself is written against LVGL's C API, but your entry point ("glue"
 - 🚀 **Live Preview**: See your LVGL UI in real-time as you code
 - 🔄 **Hot Reload**: Automatic recompilation and refresh on file save with full WASM module reloading
 - 🎨 **Interactive**: Full mouse/touch input support
-- ⚙️ **Configurable**: Customize display size, LVGL version, and compiler optimization
-- 🛠️ **In-Preview Settings**: Adjust all settings from a settings panel in the preview window — edits apply only when you click **Save** (Reset Cache / Reset to Defaults apply immediately)
+- 🛠️ **In-Preview Settings**: Adjust display size, LVGL version, optimization, and more from a panel in the preview window — edits apply when you click **Save** (Reset Cache / Reset to Defaults apply immediately)
 - 🔀 **Orientation Toggle**: A **Rotate** button swaps display width/height (portrait ⇄ landscape) for the current session, without changing your saved settings
 - 🔍 **Fit to Window**: The preview scales to fit the window (up or down) while preserving aspect ratio; can be toggled off in settings
 - 📦 **Zero Setup**: Emscripten SDK is downloaded and installed automatically
-- 🎯 **Single or Multi-File**: Works with single C/C++ files or multi-file projects with dependencies
-- ➕ **C and C++**: Preview a C entry point, or a C++ entry point that drives a C LVGL UI
-- 📁 **Dependency Management**: Configure dependencies via `.lvgl-live-preview.json` with incremental compilation
+- ➕ **C and C++**: Preview a single file or a multi-file project — a C entry point, or a C++ entry point that drives a C LVGL UI
+- 📁 **Dependency Management**: Configure dependencies via `.lvgl-live-preview.json` with incremental compilation and smart caching
 - 🔧 **Custom Defines**: Add global preprocessor defines to your project
-- 💾 **Smart Caching**: Dependency object files are cached and only recompiled when changed
 - 🔍 **Error Reporting**: Inline diagnostics for compilation errors
 - 📝 **Runtime Logs in VS Code**: Your app's `printf` and `LV_LOG_*` output is routed to a dedicated "LVGL Runtime" output channel
-- ♻️ **Reliable Reloading**: Webview recreation ensures clean module reloading on every change
 
 ## Installation
 
@@ -207,7 +203,9 @@ All settings are managed from the **preview window** — they are stored by the 
 | `LVGL: Open Sample File` | - | Open a ready-to-run C sample |
 | `LVGL: Open C++ Sample File` | - | Open a ready-to-run C++ sample (C++ glue driving a C UI) |
 | `LVGL: Check Setup` | - | Diagnose the environment (Python, Emscripten, disk space, network) |
+| `LVGL: Install Emscripten Toolchain` | - | Install the bundled Emscripten toolchain |
 | `LVGL: Reinstall Emscripten Toolchain` | - | Delete and reinstall the Emscripten toolchain |
+| `LVGL: Open Get Started Walkthrough` | - | Reopen the Get Started walkthrough |
 
 ## Logging
 
@@ -254,10 +252,11 @@ If you see "Python is required to install Emscripten SDK":
 ### Emscripten Download Fails
 - Check your internet connection
 - Try clearing the cache: Run "LVGL: Clear Cache"
-- Manually download from the output channel for details
+- Check the LVGL Preview output channel for details
 
 ### Compilation Errors
 - Ensure you have defined `lvgl_live_preview_init()` function wrapped in `#ifdef LVGL_LIVE_PREVIEW`
+- In a C++ entry point, declare it `extern "C"` — otherwise the linker reports `lvgl_live_preview_init` as undefined
 - Check the Problems panel (Ctrl+Shift+M) for detailed errors
 - View the LVGL Preview output channel for compiler messages
 
@@ -276,6 +275,7 @@ If you see "Python is required to install Emscripten SDK":
 - [x] Multi-file project support
 - [x] Dependency caching and incremental compilation
 - [x] Custom preprocessor defines
+- [x] C++ entry point support
 - [ ] Custom `lv_conf.h` editor
 
 ## Contributing
