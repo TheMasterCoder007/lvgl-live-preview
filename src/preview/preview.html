@@ -134,10 +134,7 @@
 
         #canvas {
             display: block;
-            /* noinspection CssOverwrittenProperties */
-            image-rendering: pixelated;
-            /* noinspection CssOverwrittenProperties */
-            image-rendering: crisp-edges;
+            image-rendering: auto;
         }
 
         #loading {
@@ -560,6 +557,12 @@
         // Reapply scaling when the window (webview) is resized.
         window.addEventListener('resize', applyScaling);
 
+        // Reapply scaling when devicePixelRatio changes (e.g., dragging the window
+        // between a Retina and non-Retina monitor, or an OS zoom change). There is no
+        // dedicated event for this, so watch a media query pinned to the current ratio
+        // and re-arm it against the new ratio each time it fires.
+        watchDevicePixelRatio();
+
         document.getElementById('settings-close').addEventListener('click', closeSettings);
         document.getElementById('settings-cancel').addEventListener('click', closeSettings);
         document.getElementById('settings-save').addEventListener('click', saveSettings);
@@ -621,6 +624,7 @@
             // Native resolution: clear any scaling.
             canvas.style.width = '';
             canvas.style.height = '';
+            applyImageRendering(canvas, bufferW);
             return;
         }
 
@@ -632,8 +636,37 @@
         }
 
         const scale = Math.min(availW / bufferW, availH / bufferH);
-        canvas.style.width = Math.max(1, Math.round(bufferW * scale)) + 'px';
-        canvas.style.height = Math.max(1, Math.round(bufferH * scale)) + 'px';
+        const cssW = Math.max(1, Math.round(bufferW * scale));
+        const cssH = Math.max(1, Math.round(bufferH * scale));
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+        applyImageRendering(canvas, bufferW, cssW);
+    }
+
+    // Choose the canvas interpolation filter based on how the source buffer maps to
+    // *physical* screen pixels (CSS size * devicePixelRatio). Nearest-neighbor
+    // ('pixelated') only looks good for whole-number upscales; for downscaling or
+    // fractional upscaling it produces the grainy, uneven aliasing we want to avoid,
+    // so we fall back to smooth ('auto') interpolation there.
+    function applyImageRendering(canvas, bufferW, cssW) {
+        const dpr = window.devicePixelRatio || 1;
+        // When cssW is omitted (native size) the CSS width equals the buffer width.
+        const deviceW = (cssW || bufferW) * dpr;
+        const ratio = deviceW / bufferW;
+        const isIntegerUpscale = ratio >= 1 && Math.abs(ratio - Math.round(ratio)) < 0.02;
+        canvas.style.imageRendering = isIntegerUpscale ? 'pixelated' : 'auto';
+    }
+
+    // Fire applyScaling() whenever devicePixelRatio changes. matchMedia can only test
+    // a fixed ratio, so the listener re-registers itself against the new ratio after
+    // each change ({ once: true } avoids piling up stale listeners).
+    function watchDevicePixelRatio() {
+        const dpr = window.devicePixelRatio || 1;
+        const mql = window.matchMedia('(resolution: ' + dpr + 'dppx)');
+        mql.addEventListener('change', function() {
+            applyScaling();
+            watchDevicePixelRatio();
+        }, { once: true });
     }
 
     function showError(message) {
