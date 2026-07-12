@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-07-12
+
+### Fixed
+- Improved the visual quality of the scaled preview when "Scale preview to fit the window" is enabled. The preview canvas previously always used nearest-neighbor scaling, which looked grainy when the preview was downscaled or upscaled by a non-integer factor (and worse the more it was scaled). Scaling now selects the filter based on the effective on-screen (physical-pixel) scale: it keeps crisp nearest-neighbor for exact integer upscales and uses smooth interpolation everywhere else, so downscaled and fractionally-scaled previews are no longer grainy
+- The preview now reapplies scaling when the display's device pixel ratio changes (for example, dragging the window between a Retina and non-Retina monitor, or changing OS display zoom), so the fit and interpolation filter stay correct
+
 ## [2.0.0] - 2026-07-10
 
 ### Added
