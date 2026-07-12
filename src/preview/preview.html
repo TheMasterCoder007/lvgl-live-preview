@@ -649,9 +649,13 @@
     // fractional upscaling it produces the grainy, uneven aliasing we want to avoid,
     // so we fall back to smooth ('auto') interpolation there.
     function applyImageRendering(canvas, bufferW, cssW) {
+        if (!bufferW) {
+            canvas.style.imageRendering = 'auto';
+            return;
+        }
         const dpr = window.devicePixelRatio || 1;
         // When cssW is omitted (native size) the CSS width equals the buffer width.
-        const deviceW = (cssW || bufferW) * dpr;
+        const deviceW = (cssW ?? bufferW) * dpr;
         const ratio = deviceW / bufferW;
         const isIntegerUpscale = ratio >= 1 && Math.abs(ratio - Math.round(ratio)) < 0.02;
         canvas.style.imageRendering = isIntegerUpscale ? 'pixelated' : 'auto';
