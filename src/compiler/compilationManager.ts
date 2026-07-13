@@ -10,6 +10,7 @@ import { IntellisenseHelper } from '../utils/intellisenseHelper';
 import { CompilationResult, ResolvedProjectConfig } from '../types';
 import { DependencyCache, CompilationSettings } from '../cache/dependencyCache';
 import { ConfigLoader } from '../utils/configLoader';
+import { ProjectResolver } from '../utils/projectResolver';
 import { SettingsManager } from '../utils/settingsManager';
 
 /**
@@ -107,49 +108,50 @@ export class CompilationManager implements vscode.Disposable {
 		this.outputChannel.appendLine(`Starting compilation of ${fileUri.fsPath}`);
 
 		try {
-			// Load project configuration
-			const projectConfig = await ConfigLoader.loadConfig(fileUri, this.outputChannel);
+			// Load project configuration. An explicit .lvgl-live-preview.json takes
+			// precedence; otherwise the layout is auto-detected (entry point + local
+			// include graph), which always yields a config, so there is no separate
+			// single-file mode to handle downstream.
+			let projectConfig = await ConfigLoader.loadConfig(fileUri, this.outputChannel);
+			if (projectConfig) {
+				this.outputChannel.appendLine(
+					'Found .lvgl-live-preview.json — using it and overriding automatic detection:'
+				);
+			} else {
+				this.outputChannel.appendLine(
+					'No .lvgl-live-preview.json found; auto-detecting project layout.'
+				);
+				projectConfig = ProjectResolver.resolve(fileUri, this.outputChannel);
+			}
 			this.currentProjectConfig = projectConfig;
 
 			// Determine the actual main file to compile
-			let mainSourceFile: string;
-			let dependencies: string[] = [];
-			let userIncludePaths: string[] = [];
-			let defines: string[] = [];
+			const mainSourceFile = projectConfig.mainFile;
+			const dependencies = projectConfig.dependencies;
+			const userIncludePaths = projectConfig.includePaths;
+			const defines = projectConfig.defines;
 
-			if (projectConfig) {
-				mainSourceFile = projectConfig.mainFile;
-				dependencies = projectConfig.dependencies;
-				userIncludePaths = projectConfig.includePaths;
-				defines = projectConfig.defines;
+			this.outputChannel.appendLine(`  Main file: ${mainSourceFile}`);
+			this.outputChannel.appendLine(`  Dependencies: ${dependencies.length} files`);
+			this.outputChannel.appendLine(`  Include paths: ${userIncludePaths.length} directories`);
+			this.outputChannel.appendLine(`  Defines: ${defines.join(', ')}`);
 
-				this.outputChannel.appendLine(`Using project config mode:`);
-				this.outputChannel.appendLine(`  Main file: ${mainSourceFile}`);
-				this.outputChannel.appendLine(`  Dependencies: ${dependencies.length} files`);
-				this.outputChannel.appendLine(`  Include paths: ${userIncludePaths.length} directories`);
-				this.outputChannel.appendLine(`  Defines: ${defines.join(', ')}`);
-
-				// Initialize the dependency cache with settings
-				const projectId = this.getProjectId(projectConfig.configFileDir);
-				const compilationSettings: CompilationSettings = {
-					lvglVersion,
-					optimization: settings.emccOptimization,
-					lvglMemorySize,
-					wasmMemorySize,
-					includePaths: userIncludePaths,
-					defines,
-				};
-				this.dependencyCache = new DependencyCache(
-					this.context,
-					projectId,
-					this.outputChannel,
-					compilationSettings
-				);
-			} else {
-				// Single file mode
-				mainSourceFile = fileUri.fsPath;
-				this.outputChannel.appendLine('Using single-file mode');
-			}
+			// Initialize the dependency cache with settings
+			const projectId = this.getProjectId(projectConfig.configFileDir);
+			const compilationSettings: CompilationSettings = {
+				lvglVersion,
+				optimization: settings.emccOptimization,
+				lvglMemorySize,
+				wasmMemorySize,
+				includePaths: userIncludePaths,
+				defines,
+			};
+			this.dependencyCache = new DependencyCache(
+				this.context,
+				projectId,
+				this.outputChannel,
+				compilationSettings
+			);
 
 			// Ensure LVGL version is downloaded
 			const lvglPath = await this.versionManager.ensureVersion(lvglVersion);
