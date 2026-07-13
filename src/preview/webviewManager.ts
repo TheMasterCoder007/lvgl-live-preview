@@ -42,6 +42,16 @@ export class WebviewManager implements vscode.Disposable {
 	private hasRevealedLogChannel = false;
 
 	/**
+	 * The last content-bearing message sent to the webview (`loadWasm` or
+	 * `showError`). A webview can reload its DOM without the extension recreating
+	 * the panel — e.g., VS Code reloading the window, moving the tab to another
+	 * editor group, or restoring after the host restarts. On reload the webview
+	 * resets to its loading screen and re-posts `ready`; re-sending this restores
+	 * what it was showing instead of leaving it stuck on the spinner.
+	 */
+	private lastContentMessage: ExtensionMessage | undefined;
+
+	/**
 	 * @constructor
 	 * @brief Creates a new WebviewManager instance.
 	 *
@@ -88,7 +98,7 @@ export class WebviewManager implements vscode.Disposable {
 			return;
 		}
 
-		this.createPanel(title, column, true);
+		this.createPanel(title, column);
 	}
 
 	/**
@@ -116,7 +126,7 @@ export class WebviewManager implements vscode.Disposable {
 		// Small delay to ensure cleanup
 		await new Promise((resolve) => setTimeout(resolve, 100));
 
-		this.createPanel(title, column, false);
+		this.createPanel(title, column);
 
 		this.outputChannel.appendLine('[WebviewManager] Webview recreated');
 	}
@@ -129,12 +139,18 @@ export class WebviewManager implements vscode.Disposable {
 	 *
 	 * @param title - The title to display in the webview panel
 	 * @param column - The view column to show the panel in
-	 * @param retainContext - Whether to retain context when hidden
 	 */
-	private createPanel(title: string, column: vscode.ViewColumn, retainContext: boolean): void {
+	private createPanel(title: string, column: vscode.ViewColumn): void {
+		// Reset cached content: a freshly created panel has nothing to restore yet.
+		// (Only intentional (re)creation goes through here; involuntary reloads of an
+		// existing panel do not, so the cache survives to restore them.)
+		this.lastContentMessage = undefined;
+
 		this.panel = vscode.window.createWebviewPanel('lvglPreview', `LVGL Preview: ${title}`, column, {
 			enableScripts: true,
-			retainContextWhenHidden: retainContext,
+			// Keep the webview alive while hidden, so covering the preview with another
+			// window/tab doesn't tear it down and drop it back to the loading screen.
+			retainContextWhenHidden: true,
 			localResourceRoots: [this.context.globalStorageUri, this.context.extensionUri],
 		});
 
@@ -171,6 +187,14 @@ export class WebviewManager implements vscode.Disposable {
 				this.outputChannel.appendLine('Webview ready');
 				// Send the current settings so the in-webview settings panel is populated.
 				this.sendSettings();
+				// If the webview reloaded (e.g., it was covered/hidden, the window was
+				// reloaded, or the tab was moved), restore what it was last showing so it
+				// doesn't sit on the loading screen. A first-time `ready` has nothing
+				// cached and correctly falls through to the pending compile.
+				if (this.lastContentMessage) {
+					this.outputChannel.appendLine('Restoring last preview content after webview reload');
+					this.sendMessage(this.lastContentMessage);
+				}
 				break;
 			case 'error':
 				this.outputChannel.appendLine(`Webview error: ${message.message}`);
@@ -259,6 +283,12 @@ void Promise.resolve(this.handlers.onClearCache?.()).catch((error) =>
 	 * @param message - The message to send to the webview
 	 */
 	public sendMessage(message: ExtensionMessage): void {
+		// Remember the last content-bearing state so a webview that reloads its DOM
+		// (without the panel being recreated) can be restored on its next `ready`.
+		if (message.type === 'loadWasm' || message.type === 'showError') {
+			this.lastContentMessage = message;
+		}
+
 		if (this.panel) {
 			void this.panel.webview.postMessage(message);
 		}

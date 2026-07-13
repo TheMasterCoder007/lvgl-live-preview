@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - A dependency source that fails to compile is now reported as a build failure instead of being silently dropped. Previously a broken helper file (syntax error, `#error`, missing header, etc.) was swallowed into the output channel, and the preview either linked without it or failed later with a confusing "undefined symbol" error. The compiler diagnostics now appear in the Problems panel on the offending file and in the preview's error card, the same as an error in the main file.
 - Fixed an index-misalignment bug that could cache a compiled object under the wrong source file (and thus reuse a stale object on later builds) when an earlier dependency in the list failed to compile.
+- Fixed the preview getting stuck on the loading spinner after being covered by another window and brought back. The preview panel now stays alive while hidden (so covering it no longer tears it down), and if the webview does reload for any reason (window reload, moving the tab to another editor group, host restart) it now restores what it was showing instead of hanging on the loading screen.
 
 ### Updated
 - Updated the settings panel to stay open when the user clicks outside the settings panel. This prevents unwanted closing of the settings panel.
