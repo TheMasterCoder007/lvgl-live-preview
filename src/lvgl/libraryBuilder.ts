@@ -138,16 +138,31 @@ export class LibraryBuilder {
 				// Compile LVGL source files. The lv_drivers SDL source files are NOT
 				// pre-compiled here - they require SDL2 headers only available during the
 				// final link (USE_SDL=2), so they are compiled in compilationManager.ts.
-				const objectFiles = await this.emccWrapper.compileToObjects(
+				const compiled = await this.emccWrapper.compileToObjects(
 					sourceFiles,
 					objDir,
 					includePaths,
 					optimization
 				);
 
-				if (objectFiles.length === 0) {
-					throw new Error('Failed to compile LVGL object files');
+				// LVGL is all-or-nothing: every source must compile. Dropping failed
+				// objects would leave a partially built library and surface later as a
+				// confusing undefined-symbol link error (or a runtime crash). Fail here,
+				// with the first compiler errors, so the real cause is visible.
+				const failures = compiled.filter((c) => c.objectFile === null);
+				if (failures.length > 0) {
+					const details = failures
+						.flatMap((f) => f.errors)
+						.slice(0, 10)
+						.map((e) => `  ${e.file}:${e.line}:${e.column}: ${e.message}`)
+						.join('\n');
+					throw new Error(
+						`Failed to compile ${failures.length} of ${sourceFiles.length} LVGL source files.` +
+							(details ? `\n${details}` : '')
+					);
 				}
+
+				const objectFiles = compiled.map((c) => c.objectFile as string);
 
 				// Write a marker file to indicate a successful build
 				fs.writeFileSync(markerFile, new Date().toISOString());

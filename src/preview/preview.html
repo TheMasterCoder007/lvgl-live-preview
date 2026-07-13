@@ -575,13 +575,6 @@
             vscode.postMessage({ type: 'resetSettings' });
         });
 
-        // Clicking the dimmed backdrop (outside the panel) discards and closes.
-        document.getElementById('settings-overlay').addEventListener('click', function(event) {
-            if (event.target === this) {
-                closeSettings();
-            }
-        });
-
         // Escape discards and closes.
         document.addEventListener('keydown', function(event) {
             if (event.key === 'Escape') {

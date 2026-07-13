@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Automatic project detection: a `.lvgl-live-preview.json` file is no longer required for multi-file projects. When none is present, the extension finds the source that defines `lvgl_live_preview_init()` (the file you start the preview from, or, if that file doesn't define it, the single source in the workspace that does) and resolves its dependencies by following the local `#include "…"` graph — each quoted header's directory becomes an include path and a sibling source of the same basename (`foo.h` → `foo.c`/`foo.cpp`) is compiled as a dependency. Angle-bracket includes (LVGL, the standard library, SDL) are ignored. Detected dependencies are cached and watched for hot reload just like an explicit config. A `.lvgl-live-preview.json` still takes precedence when present, for projects that need custom `defines`, include paths not reachable through the include graph, or dependencies whose source basename differs from their header.
+
+### Fixed
+- A dependency source that fails to compile is now reported as a build failure instead of being silently dropped. Previously a broken helper file (syntax error, `#error`, missing header, etc.) was swallowed into the output channel, and the preview either linked without it or failed later with a confusing "undefined symbol" error. The compiler diagnostics now appear in the Problems panel on the offending file and in the preview's error card, the same as an error in the main file.
+- Fixed an index-misalignment bug that could cache a compiled object under the wrong source file (and thus reuse a stale object on later builds) when an earlier dependency in the list failed to compile.
+- Fixed the preview getting stuck on the loading spinner after being covered by another window and brought back. The preview panel now stays alive while hidden (so covering it no longer tears it down), and if the webview does reload for any reason (window reload, moving the tab to another editor group, host restart) it now restores what it was showing instead of hanging on the loading screen.
+
+### Updated
+- Updated the settings panel to stay open when the user clicks outside the settings panel. This prevents unwanted closing of the settings panel.
+
 ## [2.0.1] - 2026-07-12
 
 ### Fixed

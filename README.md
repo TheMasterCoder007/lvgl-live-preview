@@ -20,7 +20,7 @@ The LVGL UI itself is written against LVGL's C API, but your entry point ("glue"
 - 🔍 **Fit to Window**: The preview scales to fit the window (up or down) while preserving aspect ratio; can be toggled off in settings
 - 📦 **Zero Setup**: Emscripten SDK is downloaded and installed automatically
 - ➕ **C and C++**: Preview a single file or a multi-file project — a C entry point, or a C++ entry point that drives a C LVGL UI
-- 📁 **Dependency Management**: Configure dependencies via `.lvgl-live-preview.json` with incremental compilation and smart caching
+- 📁 **Automatic Dependency Detection**: Multi-file projects build with no config — the entry point and its `#include`-graph dependencies are found automatically (override via `.lvgl-live-preview.json` when needed), with incremental compilation and smart caching
 - 🔧 **Custom Defines**: Add global preprocessor defines to your project
 - 🔍 **Error Reporting**: Inline diagnostics for compilation errors
 - 📝 **Runtime Logs in VS Code**: Your app's `printf` and `LV_LOG_*` output is routed to a dedicated "LVGL Runtime" output channel
@@ -117,14 +117,7 @@ extern "C" void lvgl_live_preview_init(void) {
 #endif
 ```
 
-For a mixed project (C++ entry point and C UI files), point `mainFile` at the `.cpp` file and list your `.c` UI files under `dependencies` in `.lvgl-live-preview.json`:
-
-```json
-{
-  "mainFile": "app.cpp",
-  "dependencies": ["ui/screen_main.c", "ui/widgets.c"]
-}
-```
+For a mixed project (C++ entry point and C UI files) this works with no configuration: the extension finds the file that defines `lvgl_live_preview_init()` and pulls in its `.c`/`.cpp` dependencies by following the `#include` graph (see [Usage Modes](#usage-modes)).
 
 ## Requirements
 
@@ -136,11 +129,18 @@ For a mixed project (C++ entry point and C UI files), point `mainFile` at the `.
 
 ## Usage Modes
 
-### Single File Mode
-If no `.lvgl-live-preview.json` configuration file is found, the extension operates in single-file mode. Simply open a C or C++ file with LVGL code and start the preview.
+### Automatic Detection (default)
+No configuration file is required. When you start the preview, the extension:
+
+1. **Finds the main file** — the C/C++ source that *defines* `void lvgl_live_preview_init(void)`. If the file you started the preview from defines it, that file is used; otherwise the workspace is scanned for the single source that does.
+2. **Resolves dependencies** — it follows the local `#include "…"` graph from the main file. For each quoted header it resolves, the header's directory is added as an include path, and a sibling source of the same basename (`foo.h` → `foo.c`/`foo.cpp`) is compiled as a dependency. Angle-bracket includes (`<lvgl.h>`, the standard library, SDL) are provided by the toolchain and ignored.
+
+This covers most projects — a C++ entry point calling into C UI files "just works". Detected dependencies are cached and watched for hot reload exactly like the explicit modes below.
+
+Add a `.lvgl-live-preview.json` (next section) only when you need something detection can't infer: preprocessor **defines**, include directories that aren't reachable through the include graph, or a dependency whose source basename differs from its header. When present, the config file takes precedence over automatic detection.
 
 ### Multi-File Mode (Project Configuration)
-For projects with multiple source files, create a `.lvgl-live-preview.json` file at your project root:
+To override automatic detection, create a `.lvgl-live-preview.json` file at your project root:
 
 ```json
 {
