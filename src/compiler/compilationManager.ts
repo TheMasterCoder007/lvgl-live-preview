@@ -7,11 +7,29 @@ import { LibraryBuilder } from '../lvgl/libraryBuilder';
 import { VersionManager } from '../lvgl/versionManager';
 import { MainTemplate } from '../lvgl/mainTemplate';
 import { IntellisenseHelper } from '../utils/intellisenseHelper';
-import { CompilationResult, ResolvedProjectConfig } from '../types';
+import { CompilationResult, CompilerError, ResolvedProjectConfig } from '../types';
 import { DependencyCache, CompilationSettings } from '../cache/dependencyCache';
 import { ConfigLoader } from '../utils/configLoader';
 import { ProjectResolver } from '../utils/projectResolver';
 import { SettingsManager } from '../utils/settingsManager';
+
+/**
+ * @class DependencyCompilationError
+ * @brief Thrown when one or more dependency sources fail to compile.
+ *
+ * Carries the parsed diagnostics so the caller can report them as a normal
+ * compilation failure (Problems panel + preview error card) instead of letting a
+ * broken dependency vanish into the output channel.
+ */
+class DependencyCompilationError extends Error {
+	public readonly errors: CompilerError[];
+
+	constructor(errors: CompilerError[]) {
+		super('One or more dependencies failed to compile');
+		this.name = 'DependencyCompilationError';
+		this.errors = errors;
+	}
+}
 
 /**
  * @class CompilationManager
@@ -184,7 +202,10 @@ export class CompilationManager implements vscode.Disposable {
 				this.outputChannel.appendLine(`Added lv_drivers include path: ${lvDriversIncludePath}`);
 			}
 
-			// Compile dependencies if any
+			// Compile dependencies if any. A dependency compile failure throws a
+			// DependencyCompilationError, handled by the catch below so it is reported
+			// like a main-file failure (Problems panel + preview error card) rather than
+			// being swallowed into the log.
 			let dependencyObjects: string[] = [];
 			if (dependencies.length > 0 && this.dependencyCache) {
 				dependencyObjects = await this.compileDependencies(
@@ -257,6 +278,23 @@ export class CompilationManager implements vscode.Disposable {
 
 			return result;
 		} catch (error) {
+			// A dependency that failed to compile carries its own parsed diagnostics;
+			// surface those (on the offending files) instead of a generic message.
+			if (error instanceof DependencyCompilationError) {
+				this.outputChannel.appendLine('Dependency compilation failed:');
+				error.errors.forEach((err) => {
+					this.outputChannel.appendLine(`  ${err.file}:${err.line}:${err.column}: ${err.message}`);
+				});
+
+				const result: CompilationResult = {
+					success: false,
+					errors: error.errors,
+					warnings: [],
+				};
+				this.updateDiagnostics(vscode.Uri.file(fileUri.fsPath), result);
+				return result;
+			}
+
 			this.outputChannel.appendLine(`Compilation error: ${error}`);
 			return {
 				success: false,
@@ -326,14 +364,23 @@ export class CompilationManager implements vscode.Disposable {
 				defines
 			);
 
-			// Update cache for newly compiled files
-			for (let i = 0; i < filesToCompile.length; i++) {
-				const sourcePath = filesToCompile[i];
-				const objPath = compiled[i];
-				if (objPath && fs.existsSync(objPath)) {
-					this.dependencyCache.updateCache(sourcePath, objPath);
-					objectFiles.push(objPath);
+			// Each result is paired with its own source file, so caching stays correct
+			// even when an earlier dependency fails. Cache successes; collect failures.
+			const failureErrors: CompilerError[] = [];
+			for (const item of compiled) {
+				if (item.objectFile && fs.existsSync(item.objectFile)) {
+					this.dependencyCache.updateCache(item.sourceFile, item.objectFile);
+					objectFiles.push(item.objectFile);
+				} else {
+					failureErrors.push(...item.errors);
 				}
+			}
+
+			// A dependency that fails to compile is a real build failure — surface it
+			// instead of linking without it (which would either drop functionality or
+			// produce a confusing "undefined symbol" error at the final link).
+			if (failureErrors.length > 0) {
+				throw new DependencyCompilationError(failureErrors);
 			}
 		}
 
@@ -370,27 +417,40 @@ export class CompilationManager implements vscode.Disposable {
 	 * @param result CompilationResult containing errors and warnings to display.
 	 */
 	private updateDiagnostics(fileUri: vscode.Uri, result: CompilationResult): void {
-		const diagnostics: vscode.Diagnostic[] = [];
+		// Group diagnostics by the file each one actually refers to. A dependency
+		// error (e.g. in a helper .c) must land on that file, not on the main file.
+		// Errors without a usable file path fall back to the compiled file's URI.
+		const byFile = new Map<string, vscode.Diagnostic[]>();
 
-		// Add errors
+		const add = (
+			file: string,
+			line: number,
+			column: number,
+			message: string,
+			severity: vscode.DiagnosticSeverity
+		): void => {
+			const targetPath = file && file.length > 0 ? file : fileUri.fsPath;
+			const zeroLine = Math.max(0, line - 1);
+			const zeroCol = Math.max(0, column - 1);
+			const range = new vscode.Range(zeroLine, zeroCol, zeroLine, zeroCol + 10);
+
+			const list = byFile.get(targetPath) ?? [];
+			list.push(new vscode.Diagnostic(range, message, severity));
+			byFile.set(targetPath, list);
+		};
+
 		for (const error of result.errors) {
-			const range = new vscode.Range(error.line - 1, error.column - 1, error.line - 1, error.column + 10);
-
-			const diagnostic = new vscode.Diagnostic(range, error.message, vscode.DiagnosticSeverity.Error);
-
-			diagnostics.push(diagnostic);
+			add(error.file, error.line, error.column, error.message, vscode.DiagnosticSeverity.Error);
 		}
-
-		// Add warnings
 		for (const warning of result.warnings) {
-			const range = new vscode.Range(warning.line - 1, warning.column - 1, warning.line - 1, warning.column + 10);
-
-			const diagnostic = new vscode.Diagnostic(range, warning.message, vscode.DiagnosticSeverity.Warning);
-
-			diagnostics.push(diagnostic);
+			add(warning.file, warning.line, warning.column, warning.message, vscode.DiagnosticSeverity.Warning);
 		}
 
-		this.diagnosticCollection.set(fileUri, diagnostics);
+		// Replace all previous diagnostics so stale per-file entries don't linger.
+		this.diagnosticCollection.clear();
+		for (const [targetPath, diagnostics] of byFile) {
+			this.diagnosticCollection.set(vscode.Uri.file(targetPath), diagnostics);
+		}
 	}
 
 	/**

@@ -138,12 +138,15 @@ export class LibraryBuilder {
 				// Compile LVGL source files. The lv_drivers SDL source files are NOT
 				// pre-compiled here - they require SDL2 headers only available during the
 				// final link (USE_SDL=2), so they are compiled in compilationManager.ts.
-				const objectFiles = await this.emccWrapper.compileToObjects(
+				const compiled = await this.emccWrapper.compileToObjects(
 					sourceFiles,
 					objDir,
 					includePaths,
 					optimization
 				);
+				const objectFiles = compiled
+					.map((c) => c.objectFile)
+					.filter((o): o is string => o !== null);
 
 				if (objectFiles.length === 0) {
 					throw new Error('Failed to compile LVGL object files');

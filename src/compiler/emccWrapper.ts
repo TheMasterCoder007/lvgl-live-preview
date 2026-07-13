@@ -11,6 +11,21 @@ import { isCppSource } from '../utils/languageUtils';
 const execFile = util.promisify(child_process.execFile);
 
 /**
+ * @interface ObjectCompilation
+ * @brief Result of compiling a single source file to an object file.
+ *
+ * `objectFile` is the compiled `.o` path on success, or null on failure. When
+ * compilation fails, `errors` holds the parsed diagnostics so a broken source
+ * (e.g. a dependency with a syntax error or `#error`) can be surfaced to the user
+ * instead of being silently dropped.
+ */
+export interface ObjectCompilation {
+	sourceFile: string;
+	objectFile: string | null;
+	errors: CompilerError[];
+}
+
+/**
  * @class EmccWrapper
  * @brief Wrapper class for Emscripten compiler (emcc) operations.
  *
@@ -131,7 +146,9 @@ export class EmccWrapper {
 	 * @param includePaths Array of include directory paths.
 	 * @param optimization Optimization level flag (default: '-O2').
 	 * @param defines Array of preprocessor defines to add (optional).
-	 * @returns Promise resolving to an array of successfully compiled object file paths.
+	 * @returns Promise resolving to a per-source result array (aligned 1:1 with
+	 *          `sourceFiles`). Each entry carries the object path on success, or
+	 *          null plus parsed diagnostics on failure.
 	 */
 	public async compileToObjects(
 		sourceFiles: string[],
@@ -139,16 +156,16 @@ export class EmccWrapper {
 		includePaths: string[],
 		optimization: string = '-O2',
 		defines: string[] = []
-	): Promise<string[]> {
+	): Promise<ObjectCompilation[]> {
 		const emccPath = this.emsdkInstaller.getEmccPath();
-		const objectFiles: string[] = [];
+		const results: ObjectCompilation[] = [];
 
 		// Compile files in parallel batches for speed
 		const batchSize = 10;
 		for (let i = 0; i < sourceFiles.length; i += batchSize) {
 			const batch = sourceFiles.slice(i, Math.min(i + batchSize, sourceFiles.length));
 
-			const promises = batch.map(async (sourceFile) => {
+			const promises = batch.map(async (sourceFile): Promise<ObjectCompilation> => {
 				// Derive an object name that is independent of the source extension
 				// (so .cpp files don't produce "foo.cpp.o") and that can't collide
 				// when two dependencies share a base name in different directories.
@@ -173,17 +190,38 @@ export class EmccWrapper {
 						maxBuffer: 10 * 1024 * 1024,
 						shell: process.platform === 'win32', // Use shell on Windows for .bat files
 					});
-					return objFile;
+					return { sourceFile, objectFile: objFile, errors: [] };
 				} catch (error: unknown) {
-					const message = error instanceof Error ? error.message : String(error);
-					this.outputChannel.appendLine(`Failed to compile ${baseName}: ${message}`);
-					return null;
+					// Surface the failure as parsed diagnostics rather than dropping the
+					// object silently. clang prints `#error`, syntax errors, and missing
+					// headers in the `file:line:col: error:` form parseCompilerOutput reads.
+					const err = error as { stderr?: string; stdout?: string; message?: string };
+					const raw = err.stderr || err.stdout || err.message || '';
+					this.outputChannel.appendLine(`Failed to compile ${baseName}:`);
+					if (raw) {
+						this.outputChannel.appendLine(raw);
+					}
+
+					const parsed = this.parseCompilerOutput(raw).filter((e) => e.severity === 'error');
+					const errors: CompilerError[] =
+						parsed.length > 0
+							? parsed
+							: [
+									{
+										file: sourceFile,
+										line: 1,
+										column: 1,
+										severity: 'error',
+										message: this.firstNonEmptyLine(raw) || `Failed to compile ${baseName}`,
+									},
+								];
+
+					return { sourceFile, objectFile: null, errors };
 				}
 			});
 
-			const results = await Promise.all(promises);
-			const successfulObjects = results.filter((obj) => obj !== null) as string[];
-			objectFiles.push(...successfulObjects);
+			const batchResults = await Promise.all(promises);
+			results.push(...batchResults);
 
 			if ((i + batchSize) % 50 === 0 || i + batchSize >= sourceFiles.length) {
 				this.outputChannel.appendLine(
@@ -192,7 +230,23 @@ export class EmccWrapper {
 			}
 		}
 
-		return objectFiles;
+		return results;
+	}
+
+	/**
+	 * @brief Returns the first non-empty, trimmed line of compiler output.
+	 *
+	 * Used as a fallback error message when the output isn't in the parseable
+	 * `file:line:col:` diagnostic form.
+	 */
+	private firstNonEmptyLine(output: string): string {
+		for (const line of output.split('\n')) {
+			const trimmed = line.trim();
+			if (trimmed) {
+				return trimmed;
+			}
+		}
+		return '';
 	}
 
 	/**
