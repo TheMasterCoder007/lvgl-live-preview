@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-07-13
+
 ### Added
 - Automatic project detection: a `.lvgl-live-preview.json` file is no longer required for multi-file projects. When none is present, the extension finds the source that defines `lvgl_live_preview_init()` (the file you start the preview from, or, if that file doesn't define it, the single source in the workspace that does) and resolves its dependencies by following the local `#include "…"` graph — each quoted header's directory becomes an include path and a sibling source of the same basename (`foo.h` → `foo.c`/`foo.cpp`) is compiled as a dependency. Angle-bracket includes (LVGL, the standard library, SDL) are ignored. Detected dependencies are cached and watched for hot reload just like an explicit config. A `.lvgl-live-preview.json` still takes precedence when present, for projects that need custom `defines`, include paths not reachable through the include graph, or dependencies whose source basename differs from their header.
 
