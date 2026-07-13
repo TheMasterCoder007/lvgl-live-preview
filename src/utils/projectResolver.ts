@@ -322,16 +322,22 @@ export class ProjectResolver {
 		return includes;
 	}
 
-	/** Case-insensitive distance metric: how many path segments two files differ by. */
-	private static pathDistance(from: string, to: string): number {
-		const a = path.dirname(from).split(path.sep);
-		const b = path.dirname(to).split(path.sep);
-		let common = 0;
-		while (common < a.length && common < b.length && a[common] === b[common]) {
-			common++;
-		}
-		return a.length - common + (b.length - common);
+/** Case-insensitive distance metric: how many path segments two files differ by. */
+private static pathDistance(from: string, to: string): number {
+	const a = path
+		.dirname(from)
+		.split(path.sep)
+		.map((segment) => segment.toLowerCase());
+	const b = path
+		.dirname(to)
+		.split(path.sep)
+		.map((segment) => segment.toLowerCase());
+	let common = 0;
+	while (common < a.length && common < b.length && a[common] === b[common]) {
+		common++;
 	}
+	return a.length - common + (b.length - common);
+}
 
 	private static isSource(filePath: string): boolean {
 		const lower = filePath.toLowerCase();
