@@ -31,7 +31,7 @@ export class SettingsManager {
 	 */
 	private static readonly DEFAULTS: PreviewSettings = {
 		emccOptimization: '-O1',
-		lvglVersion: '9.4.0',
+		lvglVersion: '9.5.0',
 		displayWidth: 480,
 		displayHeight: 320,
 		autoReload: true,
@@ -71,6 +71,7 @@ export class SettingsManager {
 			'9.2.2',
 			'9.3.0',
 			'9.4.0',
+			'9.5.0',
 		],
 		optimizations: ['-O0', '-O1', '-O2', '-O3', '-Os', '-Oz'],
 		lvglMemorySizes: [64, 128, 256, 512, 1024, 2048],

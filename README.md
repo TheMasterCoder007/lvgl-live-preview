@@ -182,7 +182,7 @@ All settings are managed from the **preview window** — they are stored by the 
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| LVGL Version | `9.4.0` | LVGL library version to use |
+| LVGL Version | `9.5.0` | LVGL library version to use |
 | Display Width | `480`   | Display width in pixels |
 | Display Height | `320`   | Display height in pixels |
 | Scale preview to fit the window | `true` | Scale the preview to fit the window while preserving aspect ratio (scales up or down) |
