@@ -308,12 +308,20 @@ export class VersionManager {
 		const versionPath = this.getVersionPath(version);
 		const sdlPath = path.join(versionPath, 'src', 'drivers', 'sdl');
 
-		return [
+		const [majorVersion, minorVersion] = version.split('.').slice(0, 2).map((v) => parseInt(v, 10));
+
+		const paths = [
 			path.join(sdlPath, 'lv_sdl_window.c'),
 			path.join(sdlPath, 'lv_sdl_mouse.c'),
 			path.join(sdlPath, 'lv_sdl_mousewheel.c'),
 			path.join(sdlPath, 'lv_sdl_keyboard.c'),
-		];
+		]
+
+		if(majorVersion > 9 || (majorVersion === 9 && minorVersion >= 5)) {
+			paths.push(path.join(sdlPath, 'lv_sdl_sw.c'));
+		}
+
+		return paths;
 	}
 
 	/**
