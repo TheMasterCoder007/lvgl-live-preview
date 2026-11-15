@@ -387,12 +387,21 @@ export class ProjectResolver {
 	 * @brief Returns true for a font shipped inside an LVGL source tree.
 	 *
 	 * Those are already part of the prebuilt LVGL library, so a copy of LVGL in
-	 * the workspace must not be compiled a second time.
+	 * the workspace must not be compiled a second time. The tree is identified by
+	 * its layout (`<lvgl>/src/font/lv_font_*.c` beside `lv_font.h`, with
+	 * `<lvgl>/lvgl.h` at the root) so a user's own `lv_font_*.c` is not excluded.
 	 */
 	private static isLvglBuiltInFont(sourcePath: string): boolean {
+		if (!path.basename(sourcePath).startsWith('lv_font_')) {
+			return false;
+		}
+		const fontDir = path.dirname(sourcePath);
+		const srcDir = path.dirname(fontDir);
 		return (
-			path.basename(sourcePath).startsWith('lv_font_') &&
-			this.isExistingFile(path.join(path.dirname(sourcePath), 'lv_font.h'))
+			path.basename(fontDir).toLowerCase() === 'font' &&
+			path.basename(srcDir).toLowerCase() === 'src' &&
+			this.isExistingFile(path.join(fontDir, 'lv_font.h')) &&
+			this.isExistingFile(path.join(path.dirname(srcDir), 'lvgl.h'))
 		);
 	}
 
