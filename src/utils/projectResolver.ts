@@ -52,6 +52,22 @@ export class ProjectResolver {
 	private static readonly ENTRY_DEFINITION_RE =
 		/(?:extern\s+"C"\s+)?void\s+lvgl_live_preview_init\s*\(\s*(?:void)?\s*\)\s*\{/;
 
+	/** LVGL types whose instances live in standalone, header-less source files. */
+	private static readonly ASSET_TYPES = '(?:lv_font_t|lv_img_dsc_t|lv_image_dsc_t)';
+
+	/** Matches `LV_FONT_DECLARE(x)` / `LV_IMG_DECLARE(x)` / `extern const lv_font_t x;`. */
+	private static readonly ASSET_DECLARATION_RE = new RegExp(
+		`\\bLV_(?:FONT|IMG|IMAGE)_DECLARE\\s*\\(\\s*(\\w+)\\s*\\)` +
+			`|\\bextern\\s+(?:const\\s+)?${ProjectResolver.ASSET_TYPES}\\s+(\\w+)\\s*;`,
+		'g'
+	);
+
+	/** Matches a font/image definition such as `const lv_font_t x = {`. */
+	private static readonly ASSET_DEFINITION_RE = new RegExp(
+		`\\b${ProjectResolver.ASSET_TYPES}\\s+(\\w+)\\s*=`,
+		'g'
+	);
+
 	/** Upper bound on files touched during a scan/graph walk, as a runaway guard. */
 	private static readonly MAX_FILES = 2000;
 
@@ -88,7 +104,9 @@ export class ProjectResolver {
 			outputChannel.appendLine(`Auto-detect: entry point defined in the active file.`);
 		}
 
-		const { dependencies, includePaths } = this.resolveIncludeGraph(mainFile, outputChannel);
+		const scanRoot =
+			vscode.workspace.getWorkspaceFolder(vscode.Uri.file(mainFile))?.uri.fsPath ?? path.dirname(mainFile);
+		const { dependencies, includePaths } = this.resolveIncludeGraph(mainFile, scanRoot, outputChannel);
 
 		outputChannel.appendLine(
 			`Auto-detect: ${dependencies.length} dependency file(s), ` +
@@ -211,6 +229,7 @@ export class ProjectResolver {
 	 */
 	private static resolveIncludeGraph(
 		mainFile: string,
+		scanRoot: string,
 		outputChannel: vscode.OutputChannel
 	): { dependencies: string[]; includePaths: string[] } {
 		const mainDir = path.dirname(mainFile);
@@ -260,10 +279,121 @@ export class ProjectResolver {
 			);
 		}
 
+		// Fonts/images are usually declared with LV_FONT_DECLARE()/LV_IMG_DECLARE()
+		// and defined in a source with no matching header, so the include graph
+		// alone never reaches them.
+		for (const assetSource of this.resolveAssetSources(visited, scanRoot, outputChannel)) {
+			dependencies.add(assetSource);
+		}
+
 		return {
 			dependencies: [...dependencies],
 			includePaths: [...includeDirs],
 		};
+	}
+
+	/**
+	 * @brief Finds the sources defining fonts/images that the project declares
+	 *        but never defines within the include graph.
+	 *
+	 * Candidates are matched by file name first (`font_c_10` → `font_c_10.c`, the
+	 * converters' default), falling back to a content scan of the remaining
+	 * sources only when a symbol is still unresolved.
+	 *
+	 * @param graphFiles Files already reached through the include graph.
+	 * @param scanRoot Directory tree searched for the defining sources.
+	 * @param outputChannel Output channel for logging.
+	 * @returns Absolute paths of the additional sources to compile.
+	 */
+	private static resolveAssetSources(
+		graphFiles: Set<string>,
+		scanRoot: string,
+		outputChannel: vscode.OutputChannel
+	): string[] {
+		const declared = new Set<string>();
+		const defined = new Set<string>();
+		for (const file of graphFiles) {
+			const content = this.readFileSafe(file);
+			if (content === null) {
+				continue;
+			}
+			for (const match of content.matchAll(this.ASSET_DECLARATION_RE)) {
+				declared.add(match[1] ?? match[2]);
+			}
+			for (const name of this.parseAssetDefinitions(content)) {
+				defined.add(name);
+			}
+		}
+
+		const unresolved = new Set([...declared].filter((name) => !defined.has(name)));
+		if (unresolved.size === 0) {
+			return [];
+		}
+
+		const candidates: string[] = [];
+		this.walkSources(scanRoot, (sourcePath) => {
+			if (!graphFiles.has(sourcePath) && !this.isLvglBuiltInFont(sourcePath)) {
+				candidates.push(sourcePath);
+			}
+		});
+
+		const found = new Set<string>();
+		const claim = (sourcePath: string): void => {
+			if (found.has(sourcePath)) {
+				return;
+			}
+			const content = this.readFileSafe(sourcePath);
+			if (content === null) {
+				return;
+			}
+			let matched = false;
+			for (const name of this.parseAssetDefinitions(content)) {
+				matched = unresolved.delete(name) || matched;
+			}
+			if (matched) {
+				found.add(sourcePath);
+			}
+		};
+
+		// Pass 1: file named after the symbol (no reads beyond the matches).
+		for (const sourcePath of candidates) {
+			if (unresolved.has(path.parse(sourcePath).name)) {
+				claim(sourcePath);
+			}
+		}
+
+		// Pass 2: content scan for symbols whose file is named differently.
+		for (const sourcePath of candidates) {
+			if (unresolved.size === 0) {
+				break;
+			}
+			claim(sourcePath);
+		}
+
+		if (found.size > 0) {
+			outputChannel.appendLine(`Auto-detect: ${found.size} font/image source file(s) added.`);
+		}
+		return [...found];
+	}
+
+	/**
+	 * @brief Extracts the names of the fonts/images a file defines.
+	 */
+	private static parseAssetDefinitions(content: string): string[] {
+		return [...content.matchAll(this.ASSET_DEFINITION_RE)].map((match) => match[1]);
+	}
+
+	/**
+	 * @brief Returns true for a font shipped inside an LVGL source tree.
+	 *
+	 * Those are already part of the prebuilt LVGL library, so a copy of LVGL in
+	 * the workspace must not be compiled a second time.
+	 */
+	private static isLvglBuiltInFont(sourcePath: string): boolean {
+		return (
+			path.basename(sourcePath).startsWith('lv_font_') &&
+			this.isExistingFile(path.join(path.dirname(sourcePath), 'lv_font.h'))
+		);
 	}
 
 	/**

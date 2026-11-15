@@ -147,7 +147,13 @@ export class CompilationManager implements vscode.Disposable {
 			const mainSourceFile = projectConfig.mainFile;
 			const dependencies = projectConfig.dependencies;
 			const userIncludePaths = projectConfig.includePaths;
-			const defines = projectConfig.defines;
+			const defines = [...projectConfig.defines];
+
+			// Generated font/image sources include "lvgl/lvgl.h" unless this is set,
+			// and the preview's LVGL include path only provides "lvgl.h".
+			if (!defines.includes('LV_LVGL_H_INCLUDE_SIMPLE')) {
+				defines.push('LV_LVGL_H_INCLUDE_SIMPLE');
+			}
 
 			this.outputChannel.appendLine(`  Main file: ${mainSourceFile}`);
 			this.outputChannel.appendLine(`  Dependencies: ${dependencies.length} files`);
