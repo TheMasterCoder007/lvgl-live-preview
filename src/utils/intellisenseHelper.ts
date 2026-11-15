@@ -49,6 +49,8 @@ export class IntellisenseHelper {
 	 * @param compilerPath Optional path to the bundled emcc, set as `compilerPath` so IntelliSense
 	 *                     picks up Emscripten's system headers, defines, and wasm target (C++ stdlib included)
 	 * @param systemIncludePaths Optional Emscripten sysroot include dirs (C stdlib, SDL2, libc++)
+	 * @param cppStandard Optional C++ standard the preview compiles with; used as `cppStandard` only
+	 *                    when a configuration is newly created (an existing one is never overridden)
 	 * @returns Promise that resolves when the configuration is updated
 	 *
 	 * @note If no workspace folder is provided, the method returns early without making changes
@@ -57,7 +59,8 @@ export class IntellisenseHelper {
 		lvglIncludePath: string,
 		workspaceFolder?: vscode.WorkspaceFolder,
 		compilerPath?: string,
-		systemIncludePaths: string[] = []
+		systemIncludePaths: string[] = [],
+		cppStandard?: string
 	): Promise<void> {
 		if (!workspaceFolder) {
 			// No workspace folder, can't create c_cpp_properties.json
@@ -81,15 +84,15 @@ export class IntellisenseHelper {
 				config = JSON.parse(content) as CppProperties;
 			} catch {
 				// If parsing fails, create a new config
-				config = this.createDefaultConfig();
+				config = this.createDefaultConfig(cppStandard);
 			}
 		} else {
-			config = this.createDefaultConfig();
+			config = this.createDefaultConfig(cppStandard);
 		}
 
 		// Ensure configurations array exists
 		if (!config.configurations || !Array.isArray(config.configurations)) {
-			config.configurations = [this.createDefaultConfiguration()];
+			config.configurations = [this.createDefaultConfiguration(cppStandard)];
 		}
 
 		// Update each configuration with LVGL and Emscripten include paths
@@ -144,9 +147,9 @@ export class IntellisenseHelper {
 	 *
 	 * @returns A default CppProperties object with minimal configuration
 	 */
-	private static createDefaultConfig(): CppProperties {
+	private static createDefaultConfig(cppStandard?: string): CppProperties {
 		return {
-			configurations: [this.createDefaultConfiguration()],
+			configurations: [this.createDefaultConfiguration(cppStandard)],
 		};
 	}
 
@@ -162,7 +165,7 @@ export class IntellisenseHelper {
 	 * @note Compiler path is not specified to avoid errors with non-existent paths;
 	 *	   VS Code will automatically detect available compilers
 	 */
-	private static createDefaultConfiguration(): CppConfiguration {
+	private static createDefaultConfiguration(cppStandard: string = 'c++17'): CppConfiguration {
 		const platform = process.platform;
 		let configName = 'Win32';
 		let intelliSenseMode = 'windows-msvc-x64';
@@ -182,7 +185,7 @@ export class IntellisenseHelper {
 			includePath: ['${workspaceFolder}/**'],
 			defines: ['_DEBUG', 'UNICODE', '_UNICODE'],
 			cStandard: 'c11',
-			cppStandard: 'c++17',
+			cppStandard,
 			intelliSenseMode: intelliSenseMode,
 		};
 	}

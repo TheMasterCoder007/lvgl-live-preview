@@ -22,6 +22,7 @@ interface CachedDependency {
 export interface CompilationSettings {
 	lvglVersion: string;
 	optimization: string;
+	cppStandard: string;
 	lvglMemorySize: number;
 	wasmMemorySize: number;
 	includePaths: string[];
@@ -130,6 +131,7 @@ export class DependencyCache {
 		const normalized = {
 			lvglVersion: settings.lvglVersion,
 			optimization: settings.optimization,
+			cppStandard: settings.cppStandard,
 			lvglMemorySize: settings.lvglMemorySize,
 			includePaths: [...settings.includePaths].sort(),
 			defines: [...settings.defines].sort(),
@@ -156,8 +158,8 @@ export class DependencyCache {
 			return false;
 		}
 
-		// Check if compilation settings changed
-		if (cached.settingsHash && cached.settingsHash !== this.currentSettingsHash) {
+		// Settings changed, or a legacy entry with no settings hash
+		if (cached.settingsHash !== this.currentSettingsHash) {
 			this.outputChannel.appendLine(
 				`Cache miss: ${path.basename(sourcePath)} - compilation settings changed`
 			);

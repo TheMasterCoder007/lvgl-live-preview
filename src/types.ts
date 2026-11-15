@@ -23,6 +23,8 @@ export interface CompilerWarning {
 
 export interface PreviewSettings {
 	emccOptimization: string;
+	/** C++ language standard passed as `-std=<value>` to the user's C++ sources (e.g. `gnu++20`). */
+	cppStandard: string;
 	lvglVersion: string;
 	displayWidth: number;
 	displayHeight: number;
@@ -40,6 +42,7 @@ export interface PreviewSettings {
 export interface SettingsOptions {
 	lvglVersions: string[];
 	optimizations: string[];
+	cppStandards: string[];
 	lvglMemorySizes: number[];
 	wasmMemorySizes: number[];
 }

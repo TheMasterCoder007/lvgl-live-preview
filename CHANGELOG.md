@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added a **C++ Standard** setting (`gnu++11`–`gnu++23`, `c++11`–`c++23`) so projects using C++20/23 can be previewed
+
+### Changed
+- C++ sources now compile as `gnu++20` by default (previously `gnu++17`)
+
+### Fixed
+- Builds no longer fail when a system-wide Emscripten install is present
+
+## [2.2.0] - 2026-09-13
+
+### Added
 - Added support for LVGL v9.5
 
 ## [2.1.0] - 2026-07-13
