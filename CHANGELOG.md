@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - C++ sources now compile as `gnu++20` by default (previously `gnu++17`)
 
+### Fixed
+- Builds no longer fail when a system-wide Emscripten install is present
+
 ## [2.2.0] - 2026-09-13
 
 ### Added

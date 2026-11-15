@@ -190,6 +190,7 @@ export class EmccWrapper {
 
 				try {
 					await execFile(emccPath, args, {
+						env: this.emsdkInstaller.getEmccEnv(),
 						maxBuffer: 10 * 1024 * 1024,
 						shell: process.platform === 'win32', // Use shell on Windows for .bat files
 					});
@@ -385,6 +386,7 @@ export class EmccWrapper {
 
 			const execOptions = {
 				cwd: outputDir,
+				env: this.emsdkInstaller.getEmccEnv(),
 				maxBuffer: 10 * 1024 * 1024,
 				timeout: 120000, // 2-minute timeout for a first-time SDL2 build
 				shell: process.platform === 'win32', // Use shell on Windows for .bat files

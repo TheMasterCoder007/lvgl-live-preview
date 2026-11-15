@@ -155,6 +155,20 @@ export class EmsdkInstaller {
 	}
 
 	/**
+	 * @brief Environment for running the bundled emcc.
+	 *
+	 * Pins the bundled config so a system-wide Emscripten install is ignored.
+	 */
+	public getEmccEnv(): NodeJS.ProcessEnv {
+		const emsdkRoot = this.getEmsdkRoot();
+		return {
+			...process.env,
+			EMSDK: emsdkRoot,
+			EM_CONFIG: path.join(emsdkRoot, '.emscripten'),
+		};
+	}
+
+	/**
 	 * @brief Gets the Emscripten sysroot include directories.
 	 *
 	 * These hold the C standard library / SDL2 headers and the libc++ (C++
@@ -195,7 +209,9 @@ export class EmsdkInstaller {
 		}
 
 		try {
-			const { stdout } = await this.execCancellable(`"${emccPath}" --version`);
+			const { stdout } = await this.execCancellable(`"${emccPath}" --version`, {
+				env: this.getEmccEnv(),
+			});
 			// The first line looks like: "emcc (Emscripten ...) 3.1.50 (<hash>)"
 			return stdout.split('\n')[0].trim();
 		} catch (error) {
