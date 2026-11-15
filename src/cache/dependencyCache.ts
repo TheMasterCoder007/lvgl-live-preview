@@ -158,8 +158,10 @@ export class DependencyCache {
 			return false;
 		}
 
-		// Check if compilation settings changed
-		if (cached.settingsHash && cached.settingsHash !== this.currentSettingsHash) {
+		// Check if compilation settings changed. A legacy entry with no settings hash
+		// is treated as a miss too: there is no way to know which flags (e.g. the C++
+		// standard) its object was built with.
+		if (cached.settingsHash !== this.currentSettingsHash) {
 			this.outputChannel.appendLine(
 				`Cache miss: ${path.basename(sourcePath)} - compilation settings changed`
 			);

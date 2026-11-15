@@ -252,8 +252,8 @@ export class CompilationManager implements vscode.Disposable {
 			}
 
 			// Compile the user file with objects and dependencies. Mixed C/C++ needs no
-			// special handling here: emcc picks each input's language by extension and
-			// links libc++ on demand (see EmccWrapper.compileWithObjects).
+			// special handling here: emcc picks each input's language by extension, and
+			// EmccWrapper.compileWithObjects applies the C++ standard and links libc++.
 			const result = await this.emccWrapper.compileWithObjects(
 				mainSourceFile,
 				outputDir,

@@ -291,11 +291,11 @@ export class EmccWrapper {
 	 *        compiled to an object on its own with the flag and that object is linked.
 	 * @returns Promise resolving to CompilationResult with success status, output paths, and any errors/warnings.
 	 *
-	 * @note Mixed C/C++ projects work without any special handling: emcc selects the
-	 * language per input by file extension (.c → C, .cpp/.cc/... → C++), and the
-	 * emscripten linker resolves the C++ standard library (libc++) on demand from the
-	 * sysroot. The generated main.c and LVGL's C drivers therefore stay C while a C++
-	 * entry point / dependency compiles as C++.
+	 * @note Mixed C/C++ projects are supported: emcc selects the language per input by
+	 * file extension (.c → C, .cpp/.cc/... → C++), and libc++ is linked from the sysroot
+	 * (DEFAULT_TO_CXX). The generated main.c and LVGL's C drivers therefore stay C while
+	 * a C++ entry point / dependency compiles as C++. The one special case is the C++
+	 * standard, which forces a C++ entry file to be compiled separately (see cppStandard).
 	 */
 	public async compileWithObjects(
 		sourceFile: string,
