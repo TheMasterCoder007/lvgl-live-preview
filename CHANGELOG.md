@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-11-15
+
 ### Added
+- Added support for LVGL v9.6
 - Added a **C++ Standard** setting (`gnu++11`–`gnu++23`, `c++11`–`c++23`) so projects using C++20/23 can be previewed
 
 ### Changed
