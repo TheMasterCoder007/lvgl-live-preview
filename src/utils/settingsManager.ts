@@ -75,9 +75,7 @@ export class SettingsManager {
 			'9.5.0',
 		],
 		optimizations: ['-O0', '-O1', '-O2', '-O3', '-Os', '-Oz'],
-		// Passed as `-std=<value>` to the user's C++ sources. The `gnu++` variants keep
-		// GNU extensions enabled (what clang uses when no -std is given); `gnu++17` is
-		// the bundled compiler's own default and matches the pre-setting behaviour.
+		// Passed as `-std=<value>`; `gnu++` variants keep GNU extensions enabled.
 		cppStandards: [
 			'gnu++11',
 			'gnu++14',
@@ -224,7 +222,7 @@ export class SettingsManager {
 		const config = vscode.workspace.getConfiguration(this.LEGACY_SECTION);
 		return {
 			emccOptimization: config.get<string>('emccOptimization', this.DEFAULTS.emccOptimization),
-			// Never existed as a VS Code setting, so there is nothing to migrate.
+			// No legacy value to migrate.
 			cppStandard: this.DEFAULTS.cppStandard,
 			lvglVersion: config.get<string>('lvglVersion', this.DEFAULTS.lvglVersion),
 			displayWidth: config.get<number>('displayWidth', this.DEFAULTS.displayWidth),

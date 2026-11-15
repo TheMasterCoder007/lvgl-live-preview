@@ -8,10 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Added a **C++ Standard** setting to the preview settings panel (`gnu++11`–`gnu++23`, `c++11`–`c++23`). The selected standard is passed as `-std=` to your C++ sources — the entry file and C++ dependencies alike — so projects that use C++20/23 features (e.g. `std::bind_front`) can be previewed. C sources and the LVGL library build are unaffected
+- Added a **C++ Standard** setting (`gnu++11`–`gnu++23`, `c++11`–`c++23`) so projects using C++20/23 can be previewed
 
 ### Changed
-- C++ sources now compile as `gnu++20` by default. Previously no `-std` was passed, so they used the bundled compiler's default (`gnu++17`). Set **C++ Standard** to `gnu++17` to restore the old behavior
+- C++ sources now compile as `gnu++20` by default (previously `gnu++17`)
 
 ## [2.2.0] - 2026-09-13
 
