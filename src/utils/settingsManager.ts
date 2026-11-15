@@ -31,6 +31,7 @@ export class SettingsManager {
 	 */
 	private static readonly DEFAULTS: PreviewSettings = {
 		emccOptimization: '-O1',
+		cppStandard: 'gnu++20',
 		lvglVersion: '9.5.0',
 		displayWidth: 480,
 		displayHeight: 320,
@@ -74,6 +75,21 @@ export class SettingsManager {
 			'9.5.0',
 		],
 		optimizations: ['-O0', '-O1', '-O2', '-O3', '-Os', '-Oz'],
+		// Passed as `-std=<value>` to the user's C++ sources. The `gnu++` variants keep
+		// GNU extensions enabled (what clang uses when no -std is given); `gnu++17` is
+		// the bundled compiler's own default and matches the pre-setting behaviour.
+		cppStandards: [
+			'gnu++11',
+			'gnu++14',
+			'gnu++17',
+			'gnu++20',
+			'gnu++23',
+			'c++11',
+			'c++14',
+			'c++17',
+			'c++20',
+			'c++23',
+		],
 		lvglMemorySizes: [64, 128, 256, 512, 1024, 2048],
 		wasmMemorySizes: [64, 128, 256, 512, 1024],
 	};
@@ -208,6 +224,8 @@ export class SettingsManager {
 		const config = vscode.workspace.getConfiguration(this.LEGACY_SECTION);
 		return {
 			emccOptimization: config.get<string>('emccOptimization', this.DEFAULTS.emccOptimization),
+			// Never existed as a VS Code setting, so there is nothing to migrate.
+			cppStandard: this.DEFAULTS.cppStandard,
 			lvglVersion: config.get<string>('lvglVersion', this.DEFAULTS.lvglVersion),
 			displayWidth: config.get<number>('displayWidth', this.DEFAULTS.displayWidth),
 			displayHeight: config.get<number>('displayHeight', this.DEFAULTS.displayHeight),

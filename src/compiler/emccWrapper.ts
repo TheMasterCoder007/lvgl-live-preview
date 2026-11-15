@@ -146,6 +146,9 @@ export class EmccWrapper {
 	 * @param includePaths Array of include directory paths.
 	 * @param optimization Optimization level flag (default: '-O2').
 	 * @param defines Array of preprocessor defines to add (optional).
+	 * @param cppStandard C++ standard (e.g. `gnu++20`) passed as `-std=` to C++ sources
+	 *        only; C sources in the same batch are unaffected. Omit to use the
+	 *        compiler default (the LVGL library build does this).
 	 * @returns Promise resolving to a per-source result array (aligned 1:1 with
 	 *          `sourceFiles`). Each entry carries the object path on success, or
 	 *          null plus parsed diagnostics on failure.
@@ -155,7 +158,8 @@ export class EmccWrapper {
 		outputDir: string,
 		includePaths: string[],
 		optimization: string = '-O2',
-		defines: string[] = []
+		defines: string[] = [],
+		cppStandard?: string
 	): Promise<ObjectCompilation[]> {
 		const emccPath = this.emsdkInstaller.getEmccPath();
 		const results: ObjectCompilation[] = [];
@@ -176,6 +180,7 @@ export class EmccWrapper {
 				// Build args array for execFile
 				const args = [
 					optimization,
+					...this.cppStandardArgs(sourceFile, cppStandard),
 					'-DLVGL_LIVE_PREVIEW',
 					...defines.map((d) => `-D${d}`),
 					'-c',
@@ -234,6 +239,20 @@ export class EmccWrapper {
 	}
 
 	/**
+	 * @brief Returns the `-std=` argument for a source file, if one applies.
+	 *
+	 * The standard is only ever passed for C++ inputs: clang rejects a C++ `-std`
+	 * on a C translation unit, and the same commands also compile `.c` sources.
+	 *
+	 * @param sourceFile Source file the flag would apply to.
+	 * @param cppStandard Requested C++ standard (e.g. `gnu++20`), or undefined/empty for the compiler default.
+	 * @returns A one-element args array, or an empty array when no flag should be passed.
+	 */
+	private cppStandardArgs(sourceFile: string, cppStandard?: string): string[] {
+		return cppStandard && isCppSource(sourceFile) ? [`-std=${cppStandard}`] : [];
+	}
+
+	/**
 	 * @brief Returns the first non-empty, trimmed line of compiler output.
 	 *
 	 * Used as a fallback error message when the output isn't in the parseable
@@ -266,6 +285,10 @@ export class EmccWrapper {
 	 * @param defines Array of preprocessor defines (optional).
 	 * @param additionalSourceFiles Array of additional source files to compile alongside main and user files (optional).
 	 * @param wasmMemoryMB Memory size in MB for the generated WebAssembly module (default: 128).
+	 * @param cppStandard C++ standard (e.g. `gnu++20`) for a C++ entry file. The link
+	 *        command mixes C inputs (main.c, the SDL drivers) with the entry file, and a
+	 *        C++ `-std` can't be scoped to one input there, so a C++ entry file is first
+	 *        compiled to an object on its own with the flag and that object is linked.
 	 * @returns Promise resolving to CompilationResult with success status, output paths, and any errors/warnings.
 	 *
 	 * @note Mixed C/C++ projects work without any special handling: emcc selects the
@@ -284,7 +307,8 @@ export class EmccWrapper {
 		userIncludePaths: string[] = [],
 		defines: string[] = [],
 		additionalSourceFiles: string[] = [],
-		wasmMemoryMB: number = 128
+		wasmMemoryMB: number = 128,
+		cppStandard?: string
 	): Promise<CompilationResult> {
 		const emccPath = this.emsdkInstaller.getEmccPath();
 		const outputName = path.join(outputDir, 'output');
@@ -305,6 +329,33 @@ export class EmccWrapper {
 		// Stack size configuration
 		const STACK_SIZE_MB = 5;
 
+		const userIncludeArgs = [
+			`-I${lvglIncludePath}`,
+			`-I${path.join(lvglIncludePath, 'src')}`,
+			...userIncludePaths.map((p) => `-I${p}`),
+		];
+
+		// A C++ entry file with a requested standard is compiled separately (see the
+		// cppStandard param note) and linked as an object; otherwise the source goes
+		// straight into the link command as before.
+		const stdArgs = this.cppStandardArgs(sourceFile, cppStandard);
+		const entryObject = stdArgs.length > 0 ? path.join(outputDir, 'entry.o') : null;
+		const entryCompileArgs = entryObject
+			? [
+					'-O0',
+					...stdArgs,
+					'-DLVGL_LIVE_PREVIEW',
+					...defines.map((d) => `-D${d}`),
+					'-s',
+					'USE_SDL=2', // Same SDL2 headers the entry file sees in the link command
+					...userIncludeArgs,
+					'-c',
+					sourceFile,
+					'-o',
+					entryObject,
+				]
+			: null;
+
 		// Use -O0 for linking to maximize speed (objects are already optimized)
 		// Use --no-entry-point and other flags to speed up linking
 		const args = [
@@ -317,6 +368,12 @@ export class EmccWrapper {
 			'USE_SDL=2',
 			'-s',
 			'ALLOW_MEMORY_GROWTH=1',
+			// Link libc++ even when every C++ input arrives as an object file (the
+			// C++ entry object, C++ dependencies). This is the default in the pinned
+			// Emscripten but not in newer releases, where emcc only links libc++ when
+			// it sees a C++ source on the command line.
+			'-s',
+			'DEFAULT_TO_CXX=1',
 			'-s',
 			'EXPORTED_FUNCTIONS=["_main"]',
 			'-s',
@@ -329,11 +386,9 @@ export class EmccWrapper {
 			'ASSERTIONS=0', // Disable assertions for speed
 			'-s',
 			'SAFE_HEAP=0', // Disable safe heap for speed
-			`-I${lvglIncludePath}`,
-			`-I${path.join(lvglIncludePath, 'src')}`,
-			...userIncludePaths.map((p) => `-I${p}`),
+			...userIncludeArgs,
 			mainFile,
-			sourceFile,
+			entryObject ?? sourceFile,
 			...additionalSourceFiles,
 			`@${responseFilePath}`,
 			'-o',
@@ -343,13 +398,24 @@ export class EmccWrapper {
 		try {
 			const startTime = Date.now();
 
-			const runLink = () =>
-				execFile(emccPath, args, {
-					cwd: outputDir,
-					maxBuffer: 10 * 1024 * 1024,
-					timeout: 120000, // 2-minute timeout for a first-time SDL2 build
-					shell: process.platform === 'win32', // Use shell on Windows for .bat files
-				});
+			const execOptions = {
+				cwd: outputDir,
+				maxBuffer: 10 * 1024 * 1024,
+				timeout: 120000, // 2-minute timeout for a first-time SDL2 build
+				shell: process.platform === 'win32', // Use shell on Windows for .bat files
+			};
+
+			const runLink = async () => {
+				// Compile the C++ entry file first when it needs its own -std. A failure
+				// throws with clang's stderr, which the catch below parses like any other.
+				let entryStderr = '';
+				if (entryCompileArgs) {
+					entryStderr = (await execFile(emccPath, entryCompileArgs, execOptions)).stderr;
+				}
+				const link = await execFile(emccPath, args, execOptions);
+				// Keep the entry file's warnings alongside the link step's output.
+				return { stdout: link.stdout, stderr: entryStderr + link.stderr };
+			};
 
 			// The first compile after installing Emscripten downloads and builds the SDL2
 			// port (a network + build step that can take 1-2 minutes). Show a progress

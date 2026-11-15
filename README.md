@@ -187,6 +187,7 @@ All settings are managed from the **preview window** — they are stored by the 
 | Display Height | `320`   | Display height in pixels |
 | Scale preview to fit the window | `true` | Scale the preview to fit the window while preserving aspect ratio (scales up or down) |
 | Emscripten Optimization | `-O1`   | Emscripten optimization level (-O0, -O1, -O2, -O3, -Os, -Oz) |
+| C++ Standard | `gnu++20` | C++ language standard for your C++ sources, passed as `-std=` (`gnu++11`–`gnu++23`, `c++11`–`c++23`). The `gnu++` variants keep GNU extensions enabled; pick `gnu++17` for the pre-setting behaviour. C sources and the LVGL library build are unaffected |
 | Auto Reload | `true`  | Automatically reload preview on file changes |
 | Debounce Delay | `100`   | Delay in ms before recompiling after file changes |
 | LVGL Memory Size | `256`   | LVGL internal heap memory size in KB (64, 128, 256, 512, 1024, 2048) |

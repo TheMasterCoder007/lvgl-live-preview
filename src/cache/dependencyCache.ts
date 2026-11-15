@@ -22,6 +22,7 @@ interface CachedDependency {
 export interface CompilationSettings {
 	lvglVersion: string;
 	optimization: string;
+	cppStandard: string;
 	lvglMemorySize: number;
 	wasmMemorySize: number;
 	includePaths: string[];
@@ -130,6 +131,7 @@ export class DependencyCache {
 		const normalized = {
 			lvglVersion: settings.lvglVersion,
 			optimization: settings.optimization,
+			cppStandard: settings.cppStandard,
 			lvglMemorySize: settings.lvglMemorySize,
 			includePaths: [...settings.includePaths].sort(),
 			defines: [...settings.defines].sort(),

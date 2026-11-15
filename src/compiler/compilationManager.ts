@@ -159,6 +159,7 @@ export class CompilationManager implements vscode.Disposable {
 			const compilationSettings: CompilationSettings = {
 				lvglVersion,
 				optimization: settings.emccOptimization,
+				cppStandard: settings.cppStandard,
 				lvglMemorySize,
 				wasmMemorySize,
 				includePaths: userIncludePaths,
@@ -183,7 +184,8 @@ export class CompilationManager implements vscode.Disposable {
 				lvglPath,
 				workspaceFolder,
 				this.emccWrapper.getCompilerPath(),
-				this.emccWrapper.getSystemIncludePaths()
+				this.emccWrapper.getSystemIncludePaths(),
+				settings.cppStandard
 			);
 
 			// Build or get cached LVGL object files
@@ -213,7 +215,8 @@ export class CompilationManager implements vscode.Disposable {
 					lvglIncludePath,
 					settings.emccOptimization,
 					userIncludePaths,
-					defines
+					defines,
+					settings.cppStandard
 				);
 			}
 
@@ -261,7 +264,8 @@ export class CompilationManager implements vscode.Disposable {
 				userIncludePaths,
 				defines,
 				additionalSourceFiles,
-				wasmMemorySize
+				wasmMemorySize,
+				settings.cppStandard
 			);
 
 			// Update diagnostics
@@ -320,6 +324,7 @@ export class CompilationManager implements vscode.Disposable {
 	 * @param optimization Optimization level
 	 * @param userIncludePaths Array of user-specified include paths
 	 * @param defines Array of preprocessor defines
+	 * @param cppStandard C++ standard applied to C++ dependencies (e.g. `gnu++20`)
 	 * @returns Array of compiled object file paths
 	 */
 	private async compileDependencies(
@@ -327,7 +332,8 @@ export class CompilationManager implements vscode.Disposable {
 		lvglIncludePath: string,
 		optimization: string,
 		userIncludePaths: string[],
-		defines: string[]
+		defines: string[],
+		cppStandard: string
 	): Promise<string[]> {
 		if (!this.dependencyCache) {
 			throw new Error('Dependency cache not initialized');
@@ -361,7 +367,8 @@ export class CompilationManager implements vscode.Disposable {
 				cacheDir,
 				includePaths,
 				optimization,
-				defines
+				defines,
+				cppStandard
 			);
 
 			// Each result is paired with its own source file, so caching stays correct

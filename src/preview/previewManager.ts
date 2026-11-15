@@ -254,6 +254,7 @@ export class PreviewManager implements vscode.Disposable {
 		'displayWidth',
 		'displayHeight',
 		'emccOptimization',
+		'cppStandard',
 		'lvglVersion',
 		'lvglMemorySize',
 		'wasmMemorySize',
