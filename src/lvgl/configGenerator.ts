@@ -32,6 +32,8 @@ export class ConfigGenerator {
  *====================*/
 
 #define LV_COLOR_DEPTH 32
+/* LVGL 9.6+ replaces LV_COLOR_DEPTH with LV_COLOR_FORMAT_DEFAULT */
+#define LV_COLOR_FORMAT_DEFAULT LV_COLOR_FORMAT_XRGB8888
 #define LV_COLOR_16_SWAP 0
 #define LV_COLOR_SCREEN_TRANSP 0
 #define LV_COLOR_MIX_ROUND_OFS 0

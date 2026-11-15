@@ -54,10 +54,13 @@ extern void lvgl_live_preview_init(void);
  *====================*/
 #if LVGL_V9_OR_LATER
 
+/* LVGL 9.6+ exposes the SDL driver through lvgl.h; including it from src/ is deprecated */
+#if LVGL_VERSION_MAJOR == 9 && LVGL_VERSION_MINOR < 6
 #include "drivers/sdl/lv_sdl_window.h"
 #include "drivers/sdl/lv_sdl_mouse.h"
 #include "drivers/sdl/lv_sdl_mousewheel.h"
 #include "drivers/sdl/lv_sdl_keyboard.h"
+#endif
 
 static lv_display_t *disp = NULL;
 

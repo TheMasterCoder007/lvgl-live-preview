@@ -32,7 +32,7 @@ export class SettingsManager {
 	private static readonly DEFAULTS: PreviewSettings = {
 		emccOptimization: '-O1',
 		cppStandard: 'gnu++20',
-		lvglVersion: '9.5.0',
+		lvglVersion: '9.6.0',
 		displayWidth: 480,
 		displayHeight: 320,
 		autoReload: true,
@@ -73,6 +73,7 @@ export class SettingsManager {
 			'9.3.0',
 			'9.4.0',
 			'9.5.0',
+			'9.6.0',
 		],
 		optimizations: ['-O0', '-O1', '-O2', '-O3', '-Os', '-Oz'],
 		// Passed as `-std=<value>`; `gnu++` variants keep GNU extensions enabled.
