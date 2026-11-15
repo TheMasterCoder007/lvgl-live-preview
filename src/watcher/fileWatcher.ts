@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 
 /**
  * @class FileWatcher
@@ -40,9 +41,8 @@ export class FileWatcher implements vscode.Disposable {
 		this.dispose();
 
 		// Create a new watcher for the specific file
-		// Use the file path directly as a glob pattern
 		const watcher = vscode.workspace.createFileSystemWatcher(
-			fileUri.fsPath,
+			FileWatcher.patternFor(fileUri),
 			true, // ignoreCreateEvents
 			false, // ignoreChangeEvents
 			true // ignoreDeleteEvents
@@ -72,7 +72,7 @@ export class FileWatcher implements vscode.Disposable {
 		// Create a watcher for each file
 		for (const fileUri of fileUris) {
 			const watcher = vscode.workspace.createFileSystemWatcher(
-				fileUri.fsPath,
+				FileWatcher.patternFor(fileUri),
 				true, // ignoreCreateEvents
 				false, // ignoreChangeEvents
 				true // ignoreDeleteEvents
@@ -87,6 +87,21 @@ export class FileWatcher implements vscode.Disposable {
 
 			this.watchers.push(watcher);
 		}
+	}
+
+	/**
+	 * @brief Builds a watch pattern for a single file.
+	 *
+	 * A plain path string is only watched inside the open workspace folders; a
+	 * RelativePattern also works for files outside them (or with no folder open).
+	 *
+	 * @param fileUri - URI of the file to watch
+	 */
+	private static patternFor(fileUri: vscode.Uri): vscode.RelativePattern {
+		return new vscode.RelativePattern(
+			vscode.Uri.file(path.dirname(fileUri.fsPath)),
+			path.basename(fileUri.fsPath)
+		);
 	}
 
 	/**
