@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Builds no longer fail when a system-wide Emscripten install is present
 - Custom fonts and images are now detected and compiled automatically
+- Saving now reloads the preview for files outside the open workspace folder
 
 ## [2.2.0] - 2026-09-13
 
